@@ -1,0 +1,25 @@
+{
+  "slug": "SchlappiEngineering",
+  "name": "Schlappi Engineering",
+  "version": "2.0.0",
+  "license": " GPL-3.0-or-later",
+  "brand": "Schlappi Engineering",
+  "author": "Eric Schlappi and Arden Butterfield",
+  "authorEmail": "",
+  "authorUrl": "https://schlappiengineering.com/",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "https://github.com/SchlappiEngineering/Schlappi-vcv",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "btfld",
+      "name": "btfld",
+      "description": "BTFLD (Bit Fold) is a distortion, wavefolder, and four bit asynchronous analog to digital converter.",
+      "tags": [
+        "distortion"
+      ]
+    }
+  ]
+}
