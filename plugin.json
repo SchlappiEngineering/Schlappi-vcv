@@ -20,6 +20,12 @@
       "tags": [
         "distortion"
       ]
+    },
+    {
+      "slug": "BTMX",
+      "name": "BTMX",
+      "description": "BTMX (BitMix) gives hands on control over logic and rhythmic gate signals with a switch for every input and 4 different logic functions.",
+      "tags": []
     }
   ]
 }
