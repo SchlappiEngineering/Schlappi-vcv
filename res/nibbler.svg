@@ -8,7 +8,7 @@
    style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10"
    id="svg366"
    sodipodi:docname="nibbler.svg"
-   inkscape:version="1.4 (1:1.4+202410161351+e7c3feb100)"
+   inkscape:version="1.4.1 (1:1.4.1+202503302257+93de688d07)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -43,11 +43,11 @@
    inkscape:deskcolor="#d1d1d1"
    inkscape:zoom="1.4275238"
    inkscape:cx="174.07766"
-   inkscape:cy="215.05771"
+   inkscape:cy="214.70745"
    inkscape:window-width="1920"
-   inkscape:window-height="1016"
-   inkscape:window-x="1920"
-   inkscape:window-y="27"
+   inkscape:window-height="1043"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
    inkscape:window-maximized="1"
    inkscape:current-layer="svg366"
    inkscape:document-units="mm" />
@@ -130,7 +130,7 @@
     <g
    id="GRAPHICS"
    transform="matrix(0.06334205,0,0,0.06334205,-98.159121,-35.281549)"
-   style="display:none">
+   style="display:inline">
         <g
    transform="matrix(3.67672,0,0,5.63316,513.323,-308.979)"
    id="g9">
@@ -183,7 +183,7 @@
     <g
    id="TEXT"
    transform="matrix(0.35190055,0,0,0.35190055,-98.159121,-35.281549)"
-   style="display:none">
+   style="display:inline">
         <g
    transform="matrix(1.25276,0,0,1.41572,-218.403,-168.633)"
    id="g15">

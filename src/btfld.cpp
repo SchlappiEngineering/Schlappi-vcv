@@ -88,23 +88,23 @@ struct BtfldWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(7.196, 111.736)), module, Btfld::STEP_OUT_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.541, 111.736)), module, Btfld::OUT1_OUTPUT));
 
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 11.655)), module, Btfld::LEVEL_7_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 16.659)), module, Btfld::LEVEL_6_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 21.663)), module, Btfld::LEVEL_5_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 26.646)), module, Btfld::LEVEL_4_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 31.629)), module, Btfld::LEVEL_3_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 36.654)), module, Btfld::LEVEL_2_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 41.637)), module, Btfld::LEVEL_1_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(3.247, 46.62)), module, Btfld::LEVEL_0_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(27.213, 53.376)), module, Btfld::SAW_INDICATOR_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(13.868, 66.552)), module, Btfld::INPUT_INDICATOR_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(27.213, 66.552)), module, Btfld::INDICATOR_8_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(13.868, 79.389)), module, Btfld::CV_INDICATOR_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(27.213, 79.389)), module, Btfld::INDICATOR_4_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(13.868, 92.543)), module, Btfld::INJECT_INDICATOR_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(27.213, 92.543)), module, Btfld::INDICATOR_2_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(13.868, 105.232)), module, Btfld::STEP_INDICATOR_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(27.213, 105.232)), module, Btfld::INDICATOR_1_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 11.655)), module, Btfld::LEVEL_7_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 16.659)), module, Btfld::LEVEL_6_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 21.663)), module, Btfld::LEVEL_5_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 26.646)), module, Btfld::LEVEL_4_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 31.629)), module, Btfld::LEVEL_3_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 36.654)), module, Btfld::LEVEL_2_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 41.637)), module, Btfld::LEVEL_1_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 46.62)), module, Btfld::LEVEL_0_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 53.376)), module, Btfld::SAW_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 66.552)), module, Btfld::INPUT_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 66.552)), module, Btfld::INDICATOR_8_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 79.389)), module, Btfld::CV_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 79.389)), module, Btfld::INDICATOR_4_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 92.543)), module, Btfld::INJECT_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 92.543)), module, Btfld::INDICATOR_2_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 105.232)), module, Btfld::STEP_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 105.232)), module, Btfld::INDICATOR_1_LIGHT));
 	}
 };
 

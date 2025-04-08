@@ -99,22 +99,22 @@ struct Nibbler : Module {
 struct NibblerWidget : ModuleWidget {
 	NibblerWidget(Nibbler* module) {
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/Nibbler.svg")));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/nibbler.svg")));
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.494, 16.384)), module, Nibbler::ADD_8_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(49.512, 16.384)), module, Nibbler::OFFSET_1_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(30.48, 24.311)), module, Nibbler::RESET_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.494, 31.629)), module, Nibbler::ADD_4_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(49.512, 31.629)), module, Nibbler::OFFSET_2_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.5, 41.595)), module, Nibbler::SUBTRACT_ADD_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(36.506, 41.595)), module, Nibbler::ASYNC_SYNC_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.494, 46.831)), module, Nibbler::ADD_2_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.494, 62.075)), module, Nibbler::ADD_1_PARAM));
+        addParam(createParamCentered<CKD6>(mm2px(Vec(30.48, 24.311)), module, Nibbler::RESET_PARAM));
+        addParam(createParamCentered<CKSS>(mm2px(Vec(10.494, 16.384)), module, Nibbler::ADD_8_PARAM));
+        addParam(createParamCentered<CKSS>(mm2px(Vec(49.512, 16.384)), module, Nibbler::OFFSET_1_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(10.494, 31.629)), module, Nibbler::ADD_4_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(49.512, 31.629)), module, Nibbler::OFFSET_2_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(23.5, 41.595)), module, Nibbler::SUBTRACT_ADD_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(36.506, 41.595)), module, Nibbler::ASYNC_SYNC_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(10.494, 46.831)), module, Nibbler::ADD_2_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(10.494, 62.075)), module, Nibbler::ADD_1_PARAM));
 
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.5, 72.674)), module, Nibbler::CARRY_IN_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(36.506, 72.674)), module, Nibbler::GATE_8_INPUT));
