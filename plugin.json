@@ -26,6 +26,12 @@
       "name": "BTMX",
       "description": "BTMX (BitMix) gives hands on control over logic and rhythmic gate signals with a switch for every input and 4 different logic functions.",
       "tags": []
+    },
+    {
+      "slug": "Nibbler",
+      "name": "Nibbler",
+      "description": "The Nibbler is a four bit digital accumulator based on CMOS logic. This means that it counts in binary from zero to fifteen, with inputs and outputs for individual bits as well as stepped voltage outputs (digital to analog converters).",
+      "tags": []
     }
   ]
 }

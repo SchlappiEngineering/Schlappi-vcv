@@ -8,6 +8,7 @@ using namespace rack;
 extern Plugin* pluginInstance;
 extern Model* modelBtfld;
 extern Model* modelBTMX;
+extern Model* modelNibbler;
 
 // Declare each Model, defined in each module source file
 // extern Model* modelMyModule;

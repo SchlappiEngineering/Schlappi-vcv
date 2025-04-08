@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include <rack.hpp>
 
 
 struct BTMX : Module {
@@ -48,6 +49,8 @@ struct BTMX : Module {
 		MIX_4_8_INDICATOR_LIGHT,
 		LIGHTS_LEN
 	};
+
+    T
 
 	BTMX() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
