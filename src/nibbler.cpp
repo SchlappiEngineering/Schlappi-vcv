@@ -1,5 +1,34 @@
 #include "plugin.hpp"
 
+struct InputSwitch {
+    InputSwitch(Param& _param, Input& _input) : param(_param), input(_input) {
+        inputTrigger.reset();
+        mainTrigger.reset();
+        trig = false;
+    }
+
+    bool process() {
+        inputTrigger.process(input.getVoltage(), 0.1f, 1.5f);
+        trig = mainTrigger.process(inputTrigger.isHigh() || (param.getValue() > 0.5f));
+        return trig;
+    }
+
+    bool isHigh() {
+        return mainTrigger.isHigh();
+    }
+
+    bool wasTriggered() {
+        return trig;
+    }
+private:
+    dsp::SchmittTrigger inputTrigger;
+    dsp::BooleanTrigger mainTrigger;
+
+    Param& param;
+    Input& input;
+
+    bool trig;
+};
 
 struct Nibbler : Module {
 	enum ParamId {
@@ -60,7 +89,9 @@ struct Nibbler : Module {
 		LIGHTS_LEN
 	};
 
-	Nibbler() {
+    std::array<InputSwitch, 4> inputSwitches;
+
+	Nibbler() : inputSwitches({{params[ADD_1_PARAM], inputs[GATE_1_INPUT]}}){
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(ADD_8_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(OFFSET_1_PARAM, 0.f, 1.f, 0.f, "");
@@ -92,6 +123,9 @@ struct Nibbler : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+        auto isAsync = params[ASYNC_SYNC_PARAM].getValue() > 0.5;
+
+
 	}
 };
 
