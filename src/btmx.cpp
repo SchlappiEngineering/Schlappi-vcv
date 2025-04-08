@@ -5,9 +5,9 @@
 
 struct BTMX : Module {
 	enum ParamId {
-        ENUMS(SWITCH_PARAM, 8),
         LOGIC_MODE_A,
         LOGIC_MODE_B,
+        ENUMS(SWITCH_PARAM, 8),
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -74,9 +74,9 @@ struct BTMX : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
-        inputA = '\0';
-        inputB = '\0';
-        mix = '\0';
+        inputA = 0;
+        inputB = 0;
+        mix = 0;
         for (int i = 0; i < 8; ++i) {
             auto inputVoltage = params[SWITCH_PARAM + i].getValue() > 0.5 ? inputs[IN_INPUT + i].getVoltage() : 0;
             triggers[i].process(inputVoltage, TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
@@ -86,11 +86,11 @@ struct BTMX : Module {
         inputA = triggers[0].isHigh() * 8 + triggers[1].isHigh() * 4 + triggers[2].isHigh() * 2 + triggers[3].isHigh();
         inputB = triggers[4].isHigh() * 8 + triggers[5].isHigh() * 4 + triggers[6].isHigh() * 2 + triggers[7].isHigh();
 
-        int logicMode =
-                (inputs[LOGIC_MODE_A].getVoltage() > 0.5 ? 2 : 0) +
-                (inputs[LOGIC_MODE_B].getVoltage() > 0.5 ? 1 : 0);
 
-        std::cout << logicMode << " ";
+        int logicMode =
+                (params[LOGIC_MODE_A].getValue() > 0.5 ? 2 : 0) +
+                (params[LOGIC_MODE_B].getValue() > 0.5 ? 1 : 0);
+
 
         switch (logicMode) {
             case 0: mix = inputA & inputB; break;
@@ -154,19 +154,19 @@ struct BTMXWidget : ModuleWidget {
 
 		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(38.026, 53.67)), module, BTMX::STEP_INDICATOR_LIGHT));
 
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(12.057, 66.317)), module, BTMX::IN_INDICATOR_LIGHT + 0));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(12.057, 79.302)), module, BTMX::IN_INDICATOR_LIGHT + 1));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(12.057, 92.624)), module, BTMX::IN_INDICATOR_LIGHT + 2));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(12.057, 105.271)), module, BTMX::IN_INDICATOR_LIGHT + 3));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(25.21, 66.317)), module, BTMX::IN_INDICATOR_LIGHT + 4));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(25.21, 79.302)), module, BTMX::IN_INDICATOR_LIGHT + 5));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(25.21, 92.624)), module, BTMX::IN_INDICATOR_LIGHT + 6));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(25.21, 105.271)), module, BTMX::IN_INDICATOR_LIGHT + 7));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(12.057, 66.317)), module, BTMX::IN_INDICATOR_LIGHT + 0));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(12.057, 79.302)), module, BTMX::IN_INDICATOR_LIGHT + 1));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(12.057, 92.624)), module, BTMX::IN_INDICATOR_LIGHT + 2));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(12.057, 105.271)), module, BTMX::IN_INDICATOR_LIGHT + 3));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(25.21, 66.317)), module, BTMX::IN_INDICATOR_LIGHT + 4));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(25.21, 79.302)), module, BTMX::IN_INDICATOR_LIGHT + 5));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(25.21, 92.624)), module, BTMX::IN_INDICATOR_LIGHT + 6));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(25.21, 105.271)), module, BTMX::IN_INDICATOR_LIGHT + 7));
 
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(38.026, 66.317)), module, BTMX::MIX_INDICATOR_LIGHT + 0));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(38.026, 79.302)), module, BTMX::MIX_INDICATOR_LIGHT + 1));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(38.026, 92.624)), module, BTMX::MIX_INDICATOR_LIGHT + 2));
-        addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(38.026, 105.271)), module, BTMX::MIX_INDICATOR_LIGHT + 3));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(38.026, 66.317)), module, BTMX::MIX_INDICATOR_LIGHT + 0));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(38.026, 79.302)), module, BTMX::MIX_INDICATOR_LIGHT + 1));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(38.026, 92.624)), module, BTMX::MIX_INDICATOR_LIGHT + 2));
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(38.026, 105.271)), module, BTMX::MIX_INDICATOR_LIGHT + 3));
 	}
 };
 
