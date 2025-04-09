@@ -89,9 +89,8 @@ struct Nibbler : Module {
 		LIGHTS_LEN
 	};
 
-    std::array<InputSwitch, 4> inputSwitches;
 
-	Nibbler() : inputSwitches({{params[ADD_1_PARAM], inputs[GATE_1_INPUT]}}){
+	Nibbler() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(ADD_8_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(OFFSET_1_PARAM, 0.f, 1.f, 0.f, "");
@@ -123,8 +122,6 @@ struct Nibbler : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
-        auto isAsync = params[ASYNC_SYNC_PARAM].getValue() > 0.5;
-
 
 	}
 };
