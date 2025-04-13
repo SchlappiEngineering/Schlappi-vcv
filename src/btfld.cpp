@@ -112,11 +112,6 @@ struct Btfld : Module {
                 bits[i] += ((step & (1 << i)) ? 1.f : 0.f) * weight * totalWeightScalar;
             }
         }
-        for (auto& b : bits) {
-            if (b > 1.01f) {
-                std::cout << b << " " << first << " " << second << "\n";
-            }
-        }
     }
 
     void process(const ProcessArgs& args) override {
