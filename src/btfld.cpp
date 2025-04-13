@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include <iostream>
 #include <cmath>
+#include <array>
 
 struct ACCouplingFilter {
     ACCouplingFilter() : xPrev(0), yPrev(0), scalar(0) {}
@@ -60,6 +61,10 @@ struct Btfld : Module {
 	};
 
     float feedback;
+    float previousInputSignal;
+    int previousSteps;
+    std::array<float, 4> bits;
+
     ACCouplingFilter stepFilter;
     ACCouplingFilter sawFilter;
 
@@ -78,12 +83,40 @@ struct Btfld : Module {
         configOutput(BIT_OUTPUT, "Out 1");
         configOutput(STEP_OUT_OUTPUT, "Step");
 
-        feedback = 0;
+        feedback = 0; previousSteps = 0; previousInputSignal = 0;
 	}
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
         stepFilter.setDecay(0.25f * e.sampleRate);
         sawFilter.setDecay(0.25f * e.sampleRate);
+    }
+
+    void calculateInterpolatedBits(float first, float second) {
+        if (std::floor(second) - std::floor(first) < 0.01) {
+            for (auto i = 0; i < 4; ++i) {
+                bits[i] = (static_cast<int>(std::floor(first)) & (1 << i)) ? 1.f : 0.f;
+            }
+            return;
+        }
+        for (auto& b : bits) { b = 0; }
+        auto totalWeightScalar = 1 / (second - first);
+        for (int step = std::floor(first); step <= std::floor(second - 0.001); ++step) {
+            auto weight = 1.f;
+            if (step == std::floor(first)) {
+                weight -= first - std::floor(first);
+            }
+            if (step == std::floor(second)) {
+                weight -= std::ceil(second) - second;
+            }
+            for (auto i = 0; i < 4; ++i) {
+                bits[i] += ((step & (1 << i)) ? 1.f : 0.f) * weight * totalWeightScalar;
+            }
+        }
+        for (auto& b : bits) {
+            if (b > 1.01f) {
+                std::cout << b << " " << first << " " << second << "\n";
+            }
+        }
     }
 
     void process(const ProcessArgs& args) override {
@@ -98,21 +131,15 @@ struct Btfld : Module {
         inputSignal += inputs[INJECT_INPUT].getVoltage();
 
         inputSignal = std::max(inputSignal, 0.f);
-
         inputSignal = std::min(inputSignal, 11.7f); // TODO: more natural saturation
-
-        auto steps = static_cast<int>(floor(inputSignal * (15.f / 10.f)));
-
+        inputSignal *= (15.f / 10.f);
+        auto steps = static_cast<int>(floor(inputSignal));
         steps = std::max(0, std::min(steps, 15));
 
+        calculateInterpolatedBits(std::min(inputSignal, previousInputSignal), std::max(inputSignal, previousInputSignal));
         for (auto i = 0; i < 4; ++i) {
-            if (steps & (1 << i)) {
-                outputs[BIT_OUTPUT + i].setVoltage(bipolar ? 5.f : 10.f);
-                lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(1.f, args.sampleTime);
-            } else {
-                outputs[BIT_OUTPUT + i].setVoltage(bipolar ? -5.f : 0.f);
-                lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(0.f, args.sampleTime);
-            }
+            outputs[BIT_OUTPUT + i].setVoltage(bits[i] * 10.f - (bipolar ? 5.f : 0.f));
+            lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(bits[i], args.sampleTime);
         }
 
         auto rescaledSteps = static_cast<float>(steps) * (10.f / 15.f);
@@ -121,6 +148,8 @@ struct Btfld : Module {
         auto saw = inputSignal - rescaledSteps;
         auto filteredSaw = sawFilter.process(saw);
         feedback = saturate((bipolar ? filteredSaw : saw) * 10.f);
+        previousInputSignal = inputSignal;
+        previousSteps = steps;
         outputs[SAW_OUTPUT].setVoltage(feedback);
     }
 };
