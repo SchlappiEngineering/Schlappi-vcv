@@ -95,6 +95,7 @@ struct Nibbler : Module {
     const float TRIGGER_LOW_THRESHOLD = 0.1f;
     const float TRIGGER_HIGH_THRESHOLD = 1.5f;
     unsigned char outputRegisters;
+    float sampleTime;
 
 	Nibbler() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -128,19 +129,7 @@ struct Nibbler : Module {
         outputRegisters = 0;
 	}
 
-    unsigned char getOffset() {
-        auto offsetIndex = (params[OFFSET_1_PARAM].getValue() > 0.5f ? 2 : 0)
-                           + (params[OFFSET_2_PARAM].getValue() > 0.5 ? 1 : 0);
-        switch (offsetIndex) {
-            case 0: return 0;
-            case 1: return 2;
-            case 2: return 4;
-            case 4: return 8;
-            default: return 0;
-        }
-    }
-
-	void process(const ProcessArgs& args) override {
+    unsigned char getStep() {
         bitInputTriggers[0].process(inputs[GATE_1_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
         bitInputTriggers[1].process(inputs[GATE_2_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
         bitInputTriggers[2].process(inputs[GATE_4_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
@@ -160,31 +149,78 @@ struct Nibbler : Module {
 
         unsigned char step = (gateInput + switchInput) & 15;
 
-        lights[GATE_1_LIGHT].setBrightnessSmooth(step & 1 ? 1.f : 0.f, args.sampleTime);
-        lights[GATE_2_LIGHT].setBrightnessSmooth(step & 2 ? 1.f : 0.f, args.sampleTime);
-        lights[GATE_4_LIGHT].setBrightnessSmooth(step & 4 ? 1.f : 0.f, args.sampleTime);
-        lights[GATE_8_LIGHT].setBrightnessSmooth(step & 8 ? 1.f : 0.f, args.sampleTime);
+        lights[GATE_1_LIGHT].setBrightnessSmooth(step & 1 ? 1.f : 0.f, sampleTime);
+        lights[GATE_2_LIGHT].setBrightnessSmooth(step & 2 ? 1.f : 0.f, sampleTime);
+        lights[GATE_4_LIGHT].setBrightnessSmooth(step & 4 ? 1.f : 0.f, sampleTime);
+        lights[GATE_8_LIGHT].setBrightnessSmooth(step & 8 ? 1.f : 0.f, sampleTime);
 
         subtractTrigger.process(inputs[SUB_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
         bool subtract = subtractTrigger.isHigh() != (params[SUBTRACT_ADD_PARAM].getValue() > 0.5); // logical xor
 
-        lights[SUB_LIGHT].setBrightnessSmooth(subtract ? 1.f : 0.f, args.sampleTime);
+        lights[SUB_LIGHT].setBrightnessSmooth(subtract ? 1.f : 0.f, sampleTime);
 
         if (subtract) {
             step = 16 - step;
         }
+        return step;
+    }
 
+    void setRegisterOutputs(unsigned char nibble) {
+        outputs[OUT_1_OUTPUT].setVoltage(nibble & 1 ? 10.f : 0.f);
+        outputs[OUT_2_OUTPUT].setVoltage(nibble & 2 ? 10.f : 0.f);
+        outputs[OUT_4_OUTPUT].setVoltage(nibble & 4 ? 10.f : 0.f);
+        outputs[OUT_8_OUTPUT].setVoltage(nibble & 8 ? 10.f : 0.f);
+        outputs[CARRY_OUTPUT].setVoltage(nibble & 16 ? 10.f : 0.f);
+
+        lights[OUT_1_LIGHT].setBrightnessSmooth(nibble & 1 ? 1.f : 0.f, sampleTime);
+        lights[OUT_2_LIGHT].setBrightnessSmooth(nibble & 2 ? 1.f : 0.f, sampleTime);
+        lights[OUT_4_LIGHT].setBrightnessSmooth(nibble & 4 ? 1.f : 0.f, sampleTime);
+        lights[OUT_8_LIGHT].setBrightnessSmooth(nibble & 8 ? 1.f : 0.f, sampleTime);
+        lights[CARRY_LIGHT].setBrightnessSmooth(nibble & 16 ? 1.f : 0.f, sampleTime);
+
+    }
+
+    unsigned char getOffset() {
+        auto offsetIndex = (params[OFFSET_1_PARAM].getValue() > 0.5f ? 2 : 0)
+                           + (params[OFFSET_2_PARAM].getValue() > 0.5 ? 1 : 0);
+        switch (offsetIndex) {
+            case 0: return 0;
+            case 1: return 2;
+            case 2: return 4;
+            case 4: return 8;
+            default: return 0;
+        }
+    }
+
+    bool getReset() {
         resetTrigger.process(inputs[RESET_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
         bool reset = resetTrigger.isHigh() || (params[RESET_PARAM].getValue() > 0.5f);
-        lights[RESET_LIGHT].setBrightnessSmooth(reset ? 1.f : 0.f, args.sampleTime);
+        lights[RESET_LIGHT].setBrightnessSmooth(reset ? 1.f : 0.f, sampleTime);
+        return reset;
+    }
+
+    void setSteppedOutput(unsigned char resultRegister) {
+        auto offset = getOffset();
+
+        auto steppedOut = static_cast<float>(resultRegister & 15) * (10.f / 15.f);
+        outputs[STEP_OUTPUT].setVoltage(steppedOut);
+        lights[STEP_LIGHT].setBrightnessSmooth(static_cast<float>(resultRegister & 15) / 15.f, sampleTime);
+        outputs[OFFSET_STEP_OUTPUT].setVoltage(static_cast<float>((resultRegister + offset) & 15) * 10.f / 15.f);
+        lights[OFFSET_STEP_LIGHT].setBrightnessSmooth(static_cast<float>((resultRegister + offset) & 15) / 15.f, sampleTime);
+    }
+
+	void process(const ProcessArgs& args) override {
+        sampleTime = args.sampleTime;
+        auto step = getStep();
+        auto reset = getReset();
 
         bool clockGoingHigh = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
 
         bool shiftGoingHigh = shiftTrigger.process(inputs[SHIFT_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
 
         bool isAsync = params[ASYNC_SYNC_PARAM].getValue() > 0.5f;
-
         unsigned char added = (outputRegisters + step) & 31;
+
         if ((isAsync && (clockGoingHigh != shiftGoingHigh)) || (!isAsync && clockGoingHigh)) {
             outputRegisters = added;
             if (shiftTrigger.isHigh()) {
@@ -204,25 +240,8 @@ struct Nibbler : Module {
 
         auto resultRegister = isAsync ? added : outputRegisters;
 
-        outputs[OUT_1_OUTPUT].setVoltage(resultRegister & 1 ? 10.f : 0.f);
-        outputs[OUT_2_OUTPUT].setVoltage(resultRegister & 2 ? 10.f : 0.f);
-        outputs[OUT_4_OUTPUT].setVoltage(resultRegister & 4 ? 10.f : 0.f);
-        outputs[OUT_8_OUTPUT].setVoltage(resultRegister & 8 ? 10.f : 0.f);
-        outputs[CARRY_OUTPUT].setVoltage(resultRegister & 16 ? 10.f : 0.f);
-
-        lights[OUT_1_LIGHT].setBrightnessSmooth(resultRegister & 1 ? 1.f : 0.f, args.sampleTime);
-        lights[OUT_2_LIGHT].setBrightnessSmooth(resultRegister & 2 ? 1.f : 0.f, args.sampleTime);
-        lights[OUT_4_LIGHT].setBrightnessSmooth(resultRegister & 4 ? 1.f : 0.f, args.sampleTime);
-        lights[OUT_8_LIGHT].setBrightnessSmooth(resultRegister & 8 ? 1.f : 0.f, args.sampleTime);
-        lights[CARRY_LIGHT].setBrightnessSmooth(resultRegister & 16 ? 1.f : 0.f, args.sampleTime);
-
-        auto offset = getOffset();
-
-        auto steppedOut = static_cast<float>(resultRegister & 15) * (10.f / 15.f);
-        outputs[STEP_OUTPUT].setVoltage(steppedOut);
-        lights[STEP_LIGHT].setBrightnessSmooth(static_cast<float>(resultRegister & 15) / 15.f, args.sampleTime);
-        outputs[OFFSET_STEP_OUTPUT].setVoltage(static_cast<float>((resultRegister + offset) & 15) * 10.f / 15.f);
-        lights[OFFSET_STEP_LIGHT].setVoltage(static_cast<float>((resultRegister + offset) & 15) / 15.f, args.sampleTime);
+        setRegisterOutputs(resultRegister);
+        setSteppedOutput(resultRegister);
 	}
 };
 
