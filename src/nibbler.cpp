@@ -89,6 +89,12 @@ struct Nibbler : Module {
 		LIGHTS_LEN
 	};
 
+    std::array<dsp::SchmittTrigger, 4> bitInputTriggers;
+    dsp::SchmittTrigger subtractTrigger, clockTrigger, resetTrigger, shiftTrigger, dataXorTrigger;
+    // Defined in https://vcvrack.com/manual/VoltageStandards
+    const float TRIGGER_LOW_THRESHOLD = 0.1f;
+    const float TRIGGER_HIGH_THRESHOLD = 1.5f;
+    unsigned char outputRegisters;
 
 	Nibbler() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -119,10 +125,104 @@ struct Nibbler : Module {
 		configOutput(OUT_4_OUTPUT, "");
 		configOutput(OUT_2_OUTPUT, "");
 		configOutput(OUT_1_OUTPUT, "");
+        outputRegisters = 0;
 	}
 
-	void process(const ProcessArgs& args) override {
+    unsigned char getOffset() {
+        auto offsetIndex = (params[OFFSET_1_PARAM].getValue() > 0.5f ? 2 : 0)
+                           + (params[OFFSET_2_PARAM].getValue() > 0.5 ? 1 : 0);
+        switch (offsetIndex) {
+            case 0: return 0;
+            case 1: return 2;
+            case 2: return 4;
+            case 4: return 8;
+            default: return 0;
+        }
+    }
 
+	void process(const ProcessArgs& args) override {
+        bitInputTriggers[0].process(inputs[GATE_1_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        bitInputTriggers[1].process(inputs[GATE_2_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        bitInputTriggers[2].process(inputs[GATE_4_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        bitInputTriggers[3].process(inputs[GATE_8_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+
+        unsigned char gateInput =
+                (bitInputTriggers[0].isHigh() ? 1 : 0) +
+                (bitInputTriggers[1].isHigh() ? 2 : 0) +
+                (bitInputTriggers[2].isHigh() ? 4 : 0) +
+                (bitInputTriggers[3].isHigh() ? 8 : 0);
+
+        unsigned char switchInput =
+                (params[ADD_1_PARAM].getValue() > 0.5 ? 1 : 0) +
+                (params[ADD_2_PARAM].getValue() > 0.5 ? 2 : 0) +
+                (params[ADD_4_PARAM].getValue() > 0.5 ? 4 : 0) +
+                (params[ADD_8_PARAM].getValue() > 0.5 ? 8 : 0);
+
+        unsigned char step = (gateInput + switchInput) & 15;
+
+        lights[GATE_1_LIGHT].setBrightnessSmooth(step & 1 ? 1.f : 0.f, args.sampleTime);
+        lights[GATE_2_LIGHT].setBrightnessSmooth(step & 2 ? 1.f : 0.f, args.sampleTime);
+        lights[GATE_4_LIGHT].setBrightnessSmooth(step & 4 ? 1.f : 0.f, args.sampleTime);
+        lights[GATE_8_LIGHT].setBrightnessSmooth(step & 8 ? 1.f : 0.f, args.sampleTime);
+
+        subtractTrigger.process(inputs[SUB_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        bool subtract = subtractTrigger.isHigh() != (params[SUBTRACT_ADD_PARAM].getValue() > 0.5); // logical xor
+
+        lights[SUB_LIGHT].setBrightnessSmooth(subtract ? 1.f : 0.f, args.sampleTime);
+
+        if (subtract) {
+            step = 16 - step;
+        }
+
+        resetTrigger.process(inputs[RESET_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        bool reset = resetTrigger.isHigh() || (params[RESET_PARAM].getValue() > 0.5f);
+        lights[RESET_LIGHT].setBrightnessSmooth(reset ? 1.f : 0.f, args.sampleTime);
+
+        bool clockGoingHigh = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+
+        bool shiftGoingHigh = shiftTrigger.process(inputs[SHIFT_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+
+        bool isAsync = params[ASYNC_SYNC_PARAM].getValue() > 0.5f;
+
+        unsigned char added = (outputRegisters + step) & 31;
+        if ((isAsync && (clockGoingHigh != shiftGoingHigh)) || (!isAsync && clockGoingHigh)) {
+            outputRegisters = added;
+            if (shiftTrigger.isHigh()) {
+                bool shiftInput = inputs[SHIFT_DATA_INPUT].isConnected() ?
+                                  (inputs[SHIFT_DATA_INPUT].getVoltage() > TRIGGER_HIGH_THRESHOLD) : (outputRegisters & 8 == 8);
+
+                dataXorTrigger.process(inputs[DATA_XOR_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+
+                shiftInput = (shiftInput != dataXorTrigger.isHigh());
+
+                outputRegisters = (outputRegisters << 1) + shiftInput;
+            }
+            if (reset) {
+                outputRegisters = 0; // TODO: which is first: reset or shift?
+            }
+        }
+
+        auto resultRegister = isAsync ? added : outputRegisters;
+
+        outputs[OUT_1_OUTPUT].setVoltage(resultRegister & 1 ? 10.f : 0.f);
+        outputs[OUT_2_OUTPUT].setVoltage(resultRegister & 2 ? 10.f : 0.f);
+        outputs[OUT_4_OUTPUT].setVoltage(resultRegister & 4 ? 10.f : 0.f);
+        outputs[OUT_8_OUTPUT].setVoltage(resultRegister & 8 ? 10.f : 0.f);
+        outputs[CARRY_OUTPUT].setVoltage(resultRegister & 16 ? 10.f : 0.f);
+
+        lights[OUT_1_LIGHT].setBrightnessSmooth(resultRegister & 1 ? 1.f : 0.f, args.sampleTime);
+        lights[OUT_2_LIGHT].setBrightnessSmooth(resultRegister & 2 ? 1.f : 0.f, args.sampleTime);
+        lights[OUT_4_LIGHT].setBrightnessSmooth(resultRegister & 4 ? 1.f : 0.f, args.sampleTime);
+        lights[OUT_8_LIGHT].setBrightnessSmooth(resultRegister & 8 ? 1.f : 0.f, args.sampleTime);
+        lights[CARRY_LIGHT].setBrightnessSmooth(resultRegister & 16 ? 1.f : 0.f, args.sampleTime);
+
+        auto offset = getOffset();
+
+        auto steppedOut = static_cast<float>(resultRegister & 15) * (10.f / 15.f);
+        outputs[STEP_OUTPUT].setVoltage(steppedOut);
+        lights[STEP_LIGHT].setBrightnessSmooth(static_cast<float>(resultRegister & 15) / 15.f, args.sampleTime);
+        outputs[OFFSET_STEP_OUTPUT].setVoltage(static_cast<float>((resultRegister + offset) & 15) * 10.f / 15.f);
+        lights[OFFSET_STEP_LIGHT].setVoltage(static_cast<float>((resultRegister + offset) & 15) / 15.f, args.sampleTime);
 	}
 };
 
@@ -167,24 +267,24 @@ struct NibblerWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 98.687)), module, Nibbler::OUT_2_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 111.693)), module, Nibbler::OUT_1_OUTPUT));
 
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(55.53, 40.666)), module, Nibbler::OFFSET_STEP_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(42.861, 53.503)), module, Nibbler::STEP_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(55.53, 53.503)), module, Nibbler::CARRY_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(29.855, 66.171)), module, Nibbler::CARRY_IN_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(42.861, 66.171)), module, Nibbler::GATE_8_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(55.53, 66.171)), module, Nibbler::OUT_8_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(16.849, 79.178)), module, Nibbler::CLOCK_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(29.855, 79.178)), module, Nibbler::SHIFT_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(42.861, 79.178)), module, Nibbler::GATE_4_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(55.868, 79.178)), module, Nibbler::OUT_4_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(16.849, 92.522)), module, Nibbler::RESET_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(55.868, 92.184)), module, Nibbler::OUT_2_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(29.855, 92.522)), module, Nibbler::SHIFT_DATA_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(42.861, 92.522)), module, Nibbler::GATE_2_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(16.849, 105.19)), module, Nibbler::SUB_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(29.855, 105.19)), module, Nibbler::DATA_XOR_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(42.861, 105.19)), module, Nibbler::GATE_1_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(55.868, 105.19)), module, Nibbler::OUT_1_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(55.53, 40.666)), module, Nibbler::OFFSET_STEP_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(42.861, 53.503)), module, Nibbler::STEP_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(55.53, 53.503)), module, Nibbler::CARRY_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(29.855, 66.171)), module, Nibbler::CARRY_IN_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(42.861, 66.171)), module, Nibbler::GATE_8_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(55.53, 66.171)), module, Nibbler::OUT_8_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(16.849, 79.178)), module, Nibbler::CLOCK_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(29.855, 79.178)), module, Nibbler::SHIFT_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(42.861, 79.178)), module, Nibbler::GATE_4_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(55.868, 79.178)), module, Nibbler::OUT_4_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(16.849, 92.522)), module, Nibbler::RESET_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(55.868, 92.184)), module, Nibbler::OUT_2_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(29.855, 92.522)), module, Nibbler::SHIFT_DATA_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(42.861, 92.522)), module, Nibbler::GATE_2_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(16.849, 105.19)), module, Nibbler::SUB_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(29.855, 105.19)), module, Nibbler::DATA_XOR_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(42.861, 105.19)), module, Nibbler::GATE_1_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(55.868, 105.19)), module, Nibbler::OUT_1_LIGHT));
 	}
 };
 
