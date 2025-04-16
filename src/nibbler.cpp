@@ -90,7 +90,7 @@ struct Nibbler : Module {
 	};
 
     std::array<dsp::SchmittTrigger, 4> bitInputTriggers;
-    dsp::SchmittTrigger subtractTrigger, clockTrigger, resetTrigger, shiftTrigger, dataXorTrigger;
+    dsp::SchmittTrigger subtractTrigger, clockTrigger, resetTrigger, shiftTrigger, shiftDataTrigger, dataXorTrigger;
     // Defined in https://vcvrack.com/manual/VoltageStandards
     const float TRIGGER_LOW_THRESHOLD = 0.1f;
     const float TRIGGER_HIGH_THRESHOLD = 1.5f;
@@ -202,11 +202,37 @@ struct Nibbler : Module {
     void setSteppedOutput(unsigned char resultRegister) {
         auto offset = getOffset();
 
-        auto steppedOut = static_cast<float>(resultRegister & 15) * (10.f / 15.f);
-        outputs[STEP_OUTPUT].setVoltage(steppedOut);
+        outputs[STEP_OUTPUT].setVoltage(static_cast<float>(resultRegister & 15) * (10.f / 15.f));
         lights[STEP_LIGHT].setBrightnessSmooth(static_cast<float>(resultRegister & 15) / 15.f, sampleTime);
         outputs[OFFSET_STEP_OUTPUT].setVoltage(static_cast<float>((resultRegister + offset) & 15) * 10.f / 15.f);
         lights[OFFSET_STEP_LIGHT].setBrightnessSmooth(static_cast<float>((resultRegister + offset) & 15) / 15.f, sampleTime);
+    }
+
+    bool getClockGoingHigh() {
+        bool clockGoingHigh = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        lights[CLOCK_LIGHT].setBrightnessSmooth(clockTrigger.isHigh() ? 1.f : 0.f, sampleTime);
+        return clockGoingHigh;
+    }
+
+    bool getShiftGoingHigh() {
+        bool shiftGoingHigh = shiftTrigger.process(inputs[SHIFT_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        lights[SHIFT_LIGHT].setBrightnessSmooth(shiftTrigger.isHigh() ? 1.f : 0.f, sampleTime);
+        return shiftGoingHigh;
+    }
+
+    bool getShiftInput() {
+        bool result;
+        if (inputs[SHIFT_DATA_INPUT].isConnected()) {
+            shiftDataTrigger.process(inputs[SHIFT_DATA_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+            result = shiftDataTrigger.isHigh();
+        } else {
+            result = ((outputRegisters & 8) == 8);
+        }
+        lights[SHIFT_DATA_LIGHT].setBrightnessSmooth(result ? 1.f : 0.f);
+
+        dataXorTrigger.process(inputs[DATA_XOR_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        lights[DATA_XOR_LIGHT].setBrightnessSmooth(dataXorTrigger.isHigh() ? 1.f : 0.f);
+        return result != dataXorTrigger.isHigh();
     }
 
 	void process(const ProcessArgs& args) override {
@@ -214,23 +240,17 @@ struct Nibbler : Module {
         auto step = getStep();
         auto reset = getReset();
 
-        bool clockGoingHigh = clockTrigger.process(inputs[CLOCK_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
-
-        bool shiftGoingHigh = shiftTrigger.process(inputs[SHIFT_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
+        bool clockGoingHigh = getClockGoingHigh();
+        bool shiftGoingHigh = getShiftGoingHigh();
 
         bool isAsync = params[ASYNC_SYNC_PARAM].getValue() > 0.5f;
         unsigned char added = (outputRegisters + step) & 31;
 
-        if ((isAsync && (clockGoingHigh != shiftGoingHigh)) || (!isAsync && clockGoingHigh)) {
+        bool shiftInput = getShiftInput();
+
+        if ((isAsync &&  shiftGoingHigh) || (clockGoingHigh)) {
             outputRegisters = added;
             if (shiftTrigger.isHigh()) {
-                bool shiftInput = inputs[SHIFT_DATA_INPUT].isConnected() ?
-                                  (inputs[SHIFT_DATA_INPUT].getVoltage() > TRIGGER_HIGH_THRESHOLD) : (outputRegisters & 8 == 8);
-
-                dataXorTrigger.process(inputs[DATA_XOR_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
-
-                shiftInput = (shiftInput != dataXorTrigger.isHigh());
-
                 outputRegisters = (outputRegisters << 1) + shiftInput;
             }
             if (reset) {
