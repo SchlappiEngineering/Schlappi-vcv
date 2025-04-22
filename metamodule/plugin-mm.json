@@ -1,0 +1,20 @@
+{
+  "MetaModulePluginMaintainer": "SchlappiEngineering",
+  "MetaModulePluginMaintainerEmail": "",
+  "MetaModulePluginMaintainerUrl": "",
+  "MetaModuleDescription": "",
+  "MetaModuleIncludedModules": [
+    {
+      "slug": "btfld",
+      "name": "btfld"
+    },
+    {
+      "slug": "BTMX",
+      "name": "BTMX"
+    },
+    {
+      "slug": "Nibbler",
+      "name": "Nibbler"
+    }
+  ]
+}
