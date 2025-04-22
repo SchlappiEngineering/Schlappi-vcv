@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include <array>
 
 struct InputSwitch {
     InputSwitch(Param& _param, Input& _input) : param(_param), input(_input) {
@@ -228,10 +229,10 @@ struct Nibbler : Module {
         } else {
             result = ((outputRegisters & 8) == 8);
         }
-        lights[SHIFT_DATA_LIGHT].setBrightnessSmooth(result ? 1.f : 0.f);
+        lights[SHIFT_DATA_LIGHT].setBrightnessSmooth(result ? 1.f : 0.f, sampleTime);
 
         dataXorTrigger.process(inputs[DATA_XOR_INPUT].getVoltage(), TRIGGER_LOW_THRESHOLD, TRIGGER_HIGH_THRESHOLD);
-        lights[DATA_XOR_LIGHT].setBrightnessSmooth(dataXorTrigger.isHigh() ? 1.f : 0.f);
+        lights[DATA_XOR_LIGHT].setBrightnessSmooth(dataXorTrigger.isHigh() ? 1.f : 0.f, sampleTime);
         return result != dataXorTrigger.isHigh();
     }
 
