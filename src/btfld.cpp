@@ -131,6 +131,20 @@ struct Btfld : Module {
         auto steps = static_cast<int>(floor(inputSignal));
         steps = std::max(0, std::min(steps, 15));
 
+        for (int l = 0; l < 8; ++l) {
+            // each light covers 2 steps
+            auto brightness = 0.f;
+            if (bipolar && l < 4) {
+                // if bipolar, invert the lower half of the lights to have a "measuring from the midpoint" effect
+                brightness += l * 2 > steps ? 0.5f : 0.f;
+                brightness += l * 2 + 1 > steps ? 0.5f : 0.f;
+            } else {
+                brightness += l * 2 <= steps ? 0.5f : 0.f;
+                brightness += l * 2 + 1 <= steps ? 0.5f : 0.f;
+            }
+            lights[LEVEL_LIGHT + l].setBrightnessSmooth(brightness, args.sampleTime);
+        }
+
         calculateInterpolatedBits(std::min(inputSignal, previousInputSignal), std::max(inputSignal, previousInputSignal));
         for (auto i = 0; i < 4; ++i) {
             outputs[BIT_OUTPUT + i].setVoltage(bits[i] * 10.f - (bipolar ? 5.f : 0.f));
