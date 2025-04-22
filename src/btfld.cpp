@@ -51,10 +51,10 @@ struct Btfld : Module {
 	};
 	enum LightId {
         ENUMS(LEVEL_LIGHT, 8),
-		SAW_INDICATOR_LIGHT,
-		INPUT_INDICATOR_LIGHT,
-		CV_INDICATOR_LIGHT,
-        INJECT_INDICATOR_LIGHT,
+		ENUMS(SAW_INDICATOR_LIGHT, 3),
+		ENUMS(INPUT_INDICATOR_LIGHT, 3),
+		ENUMS(CV_INDICATOR_LIGHT, 3),
+        ENUMS(INJECT_INDICATOR_LIGHT, 3),
         ENUMS(BIT_INDICATOR_LIGHT, 4),
         STEP_INDICATOR_LIGHT,
 		LIGHTS_LEN
@@ -114,16 +114,28 @@ struct Btfld : Module {
         }
     }
 
+    void setPosNegLight(int light, float voltage, float sampleTime) {
+        // red is negative, blue is positive
+        lights[light + 0].setBrightnessSmooth(std::min(std::max(0.f, -voltage), 5.f) * 0.2f, sampleTime);
+        lights[light + 2].setBrightnessSmooth(std::min(std::max(0.f, voltage), 5.f) * 0.2f, sampleTime);
+    }
+
     void process(const ProcessArgs& args) override {
         auto cvInput = inputs[CV_INPUT].isConnected() ? inputs[CV_INPUT].getVoltage() : feedback;
-        auto gain = params[GAIN_PARAM].getValue() + params[CV_PARAM].getValue() * cvInput * 0.1;
+        auto gain = params[GAIN_PARAM].getValue() + params[CV_PARAM].getValue() * cvInput * 0.1f;
+
+        setPosNegLight(CV_INDICATOR_LIGHT, params[CV_PARAM].getValue() * cvInput, args.sampleTime);
 
         auto inputSignal = inputs[INPUT_INPUT].getVoltage();
         auto bipolar = params[RANGE_PARAM].getValue() > 0.5f;
+        setPosNegLight(INPUT_INDICATOR_LIGHT, inputSignal, args.sampleTime);
         inputSignal *= gain;
         inputSignal += bipolar ? 5.f : 0.f;
 
-        inputSignal += inputs[INJECT_INPUT].getVoltage();
+        auto inject = inputs[INJECT_INPUT].getVoltage();
+        setPosNegLight(INJECT_INDICATOR_LIGHT, inject, args.sampleTime);
+
+        inputSignal += inject;
 
         inputSignal = std::max(inputSignal, 0.f);
         inputSignal = std::min(inputSignal, 11.7f); // TODO: more natural saturation
@@ -157,8 +169,10 @@ struct Btfld : Module {
         auto saw = inputSignal - rescaledSteps;
         auto filteredSaw = sawFilter.process(saw);
         feedback = saturate((bipolar ? filteredSaw : saw) * 10.f);
+
         previousInputSignal = inputSignal;
         previousSteps = steps;
+        setPosNegLight(SAW_INDICATOR_LIGHT, feedback, args.sampleTime);
         outputs[SAW_OUTPUT].setVoltage(feedback);
     }
 };
@@ -195,14 +209,14 @@ struct BtfldWidget : ModuleWidget {
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 36.654)), module, Btfld::LEVEL_LIGHT + 2));
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 41.637)), module, Btfld::LEVEL_LIGHT + 1));
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 46.62)), module, Btfld::LEVEL_LIGHT + 0));
-		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 53.376)), module, Btfld::SAW_INDICATOR_LIGHT));
-		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 66.552)), module, Btfld::INPUT_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<RedGreenBlueLight>>(mm2px(Vec(27.213, 53.376)), module, Btfld::SAW_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<RedGreenBlueLight>>(mm2px(Vec(13.868, 66.552)), module, Btfld::INPUT_INDICATOR_LIGHT));
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 66.552)), module, Btfld::BIT_INDICATOR_LIGHT + 3));
         addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 79.389)), module, Btfld::BIT_INDICATOR_LIGHT + 2));
         addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 92.543)), module, Btfld::BIT_INDICATOR_LIGHT + 1));
         addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(27.213, 105.232)), module, Btfld::BIT_INDICATOR_LIGHT + 0));
-        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 79.389)), module, Btfld::CV_INDICATOR_LIGHT));
-        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 92.543)), module, Btfld::INJECT_INDICATOR_LIGHT));
+        addChild(createLightCentered<MediumLight<RedGreenBlueLight>>(mm2px(Vec(13.868, 79.389)), module, Btfld::CV_INDICATOR_LIGHT));
+        addChild(createLightCentered<MediumLight<RedGreenBlueLight>>(mm2px(Vec(13.868, 92.543)), module, Btfld::INJECT_INDICATOR_LIGHT));
         addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(13.868, 105.232)), module, Btfld::STEP_INDICATOR_LIGHT));
 	}
 };
