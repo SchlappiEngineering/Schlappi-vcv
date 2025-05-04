@@ -41,16 +41,17 @@
    inkscape:pageopacity="0.0"
    inkscape:pagecheckerboard="0"
    inkscape:deskcolor="#d1d1d1"
-   inkscape:zoom="1.4275238"
-   inkscape:cx="174.07766"
-   inkscape:cy="214.70745"
+   inkscape:zoom="2.8550476"
+   inkscape:cx="85.287545"
+   inkscape:cy="108.57963"
    inkscape:window-width="1920"
-   inkscape:window-height="1043"
-   inkscape:window-x="0"
-   inkscape:window-y="0"
+   inkscape:window-height="1016"
+   inkscape:window-x="1920"
+   inkscape:window-y="27"
    inkscape:window-maximized="1"
-   inkscape:current-layer="svg366"
-   inkscape:document-units="mm" />
+   inkscape:current-layer="GRAPHICS"
+   inkscape:document-units="mm"
+   showgrid="false" />
     <rect
    style="clip-rule:evenodd;display:inline;fill:url(#linearGradient191);fill-rule:evenodd;stroke:none;stroke-width:0.127785;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers"
    id="rect185"
@@ -61,7 +62,8 @@
    id="BOARD-OUTLINE"
    serif:id="BOARD OUTLINE"
    transform="matrix(0.35190055,0,0,0.35190055,-98.159121,-35.281549)"
-   style="display:none">
+   style="display:inline"
+   sodipodi:insensitive="true">
         <g
    transform="matrix(0,0.75,-0.75,0,561.96,3.72)"
    id="g1">
@@ -179,7 +181,14 @@
    d="M -0.002,12 C -0.001,12.053 0,12.107 0,12.16 0,16.487 -3.513,20 -7.84,20 c -4.327,0 -7.84,-3.513 -7.84,-7.84 0,-0.053 10e-4,-0.107 0.002,-0.16 H -15.68 V 0.16 h 0.002 C -15.679,0.107 -15.68,0.053 -15.68,0 c 0,-4.327 3.513,-7.84 7.84,-7.84 C -3.513,-7.84 0,-4.327 0,0 0,0.053 -0.001,0.107 -0.002,0.16 H 0 V 12 Z"
    style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.33px"
    id="path334-2" />
-        </g></g>
+        </g><rect
+   style="clip-rule:evenodd;fill-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;fill:#000000;fill-opacity:1;stroke-width:0.573;stroke-dashoffset:48.849;paint-order:stroke fill markers"
+   id="rect1"
+   width="19.973875"
+   height="19.973875"
+   x="19.572727"
+   y="14.674253"
+   transform="matrix(15.787301,0,0,15.787301,1549.6676,557.00043)" /></g>
     <g
    id="TEXT"
    transform="matrix(0.35190055,0,0,0.35190055,-98.159121,-35.281549)"
