@@ -16,7 +16,7 @@ struct SchlappiToggleVertical2pos : rack::app::SvgSwitch {
 
 struct SchlappiCherryMXBrown : rack::app::SvgSwitch {
     SchlappiCherryMXBrown() {
-        latch = true;
+        momentary = true;
         addFrame(APP->window->loadSvg(rack::asset::plugin(pluginInstance, "res/widgets/keyboard-button-0.svg")));
         addFrame(APP->window->loadSvg(rack::asset::plugin(pluginInstance, "res/widgets/keyboard-button-1.svg")));
     }
