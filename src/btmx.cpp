@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include "widgets/schlappi_widgets.hpp"
 #include <rack.hpp>
 #include <array>
 #include <iostream>
@@ -125,16 +126,16 @@ struct BTMXWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParamCentered<CKSS>(mm2px(Vec(5.733, 15.033)), module, BTMX::SWITCH_PARAM + 0));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(5.733, 30.23)), module, BTMX::SWITCH_PARAM + 1));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(5.733, 45.428)), module, BTMX::SWITCH_PARAM + 2));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(5.733, 60.626)), module, BTMX::SWITCH_PARAM + 3));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(18.718, 15.033)), module, BTMX::SWITCH_PARAM + 4));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(18.718, 30.23)), module, BTMX::SWITCH_PARAM + 5));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(18.718, 45.597)), module, BTMX::SWITCH_PARAM + 6));
-		addParam(createParamCentered<CKSS>(mm2px(Vec(18.718, 60.626)), module, BTMX::SWITCH_PARAM + 7));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(31.704, 15.033)), module, BTMX::LOGIC_MODE_A));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(31.704, 30.23)), module, BTMX::LOGIC_MODE_B));
+		addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(5.733, 15.033)), module, BTMX::SWITCH_PARAM + 0));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(5.733, 30.23)), module, BTMX::SWITCH_PARAM + 1));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(5.733, 45.428)), module, BTMX::SWITCH_PARAM + 2));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(5.733, 60.626)), module, BTMX::SWITCH_PARAM + 3));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(18.718, 15.033)), module, BTMX::SWITCH_PARAM + 4));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(18.718, 30.23)), module, BTMX::SWITCH_PARAM + 5));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(18.718, 45.597)), module, BTMX::SWITCH_PARAM + 6));
+		addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(18.718, 60.626)), module, BTMX::SWITCH_PARAM + 7));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(31.704, 15.033)), module, BTMX::LOGIC_MODE_A));
+        addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(31.704, 30.23)), module, BTMX::LOGIC_MODE_B));
 
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(5.733, 72.81)), module, BTMX::IN_INPUT + 0));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(5.733, 85.794)), module, BTMX::IN_INPUT + 1));

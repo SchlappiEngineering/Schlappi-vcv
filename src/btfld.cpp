@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include "widgets/schlappi_widgets.hpp"
 #include <iostream>
 #include <cmath>
 #include <array>
@@ -186,9 +187,9 @@ struct BtfldWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(15.22, 16.406)), module, Btfld::GAIN_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(15.22, 41.785)), module, Btfld::CV_PARAM));
-		addParam(createParamCentered<CKSS>(mm2px(Vec(7.217, 58.613)), module, Btfld::RANGE_PARAM));
+		addParam(createParamCentered<SchlappiSilverKnob>(mm2px(Vec(15.22, 16.406)), module, Btfld::GAIN_PARAM));
+		addParam(createParamCentered<SchlappiSilverKnob>(mm2px(Vec(15.22, 41.785)), module, Btfld::CV_PARAM));
+		addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(7.217, 58.613)), module, Btfld::RANGE_PARAM));
 
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.196, 72.886)), module, Btfld::INPUT_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.196, 85.892)), module, Btfld::CV_INPUT));

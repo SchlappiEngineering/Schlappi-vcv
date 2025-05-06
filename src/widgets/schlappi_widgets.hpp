@@ -22,4 +22,11 @@ struct SchlappiCherryMXBrown : rack::app::SvgSwitch {
     }
 };
 
+struct SchlappiSilverKnob : RoundKnob {
+    SchlappiSilverKnob() {
+        setSvg(APP->window->loadSvg(rack::asset::plugin(pluginInstance, "res/widgets/silver-knob.svg")));
+        bg->setSvg(APP->window->loadSvg(rack::asset::plugin(pluginInstance, "res/widgets/silver-knob-bg.svg")));
+    }
+};
+
 #endif //SCHLAPPI_VCV_SCHLAPPI_WIDGETS_H
