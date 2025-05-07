@@ -3,6 +3,37 @@
 #include <iostream>
 #include <cmath>
 #include <array>
+#include <vector>
+
+struct DelayedRiser {
+    // This emulates something that we observed in the oscilloscope: after the input went high, the output would be
+    // delayed by about 15 khz, but there would be no delay when the input goes low. This way very short blips don't
+    // register. Implementing this should help with aliasing
+    DelayedRiser() {
+        setDelay(0);
+    }
+
+    void setDelay(int delay) {
+        buffer.resize(delay);
+        buffer.clear();
+        bufferPos = 0;
+    }
+
+    bool process(bool input) {
+        if (buffer.size() > 0) {
+            auto result = buffer[bufferPos];
+            buffer[bufferPos] = input;
+            bufferPos++;
+            bufferPos %= buffer.size();
+            return result;
+        } else {
+            return input;
+        }
+    }
+
+    std::vector<bool> buffer;
+    int bufferPos;
+};
 
 struct ACCouplingFilter {
     ACCouplingFilter() : xPrev(0), yPrev(0), scalar(0) {}
