@@ -5,6 +5,8 @@
 #include <array>
 #include <vector>
 
+#define NIBBLE 4
+
 struct DelayedRiser {
     // This emulates something that we observed in the oscilloscope: after the input went high, the output would be
     // delayed by about 15 khz, but there would be no delay when the input goes low. This way very short blips don't
@@ -13,26 +15,29 @@ struct DelayedRiser {
         setDelay(0);
     }
 
-    void setDelay(int delay) {
-        buffer.resize(delay);
-        buffer.clear();
-        bufferPos = 0;
+    void setDelay(int _delay) {
+        numSamplesHigh = 0;
+        delay = _delay;
     }
 
     bool process(bool input) {
-        if (buffer.size() > 0) {
-            auto result = buffer[bufferPos];
-            buffer[bufferPos] = input;
-            bufferPos++;
-            bufferPos %= buffer.size();
-            return result;
+        bool result = input;
+#if true
+        if ((input) && (numSamplesHigh >= delay)) {
+            result = true;
+        } else if (input) {
+            result = false;
+            numSamplesHigh++;
         } else {
-            return input;
+            result = false;
+            numSamplesHigh = 0;
         }
+#endif
+        return result;
     }
 
-    std::vector<bool> buffer;
-    int bufferPos;
+    int delay;
+    int numSamplesHigh;
 };
 
 struct ACCouplingFilter {
@@ -77,7 +82,7 @@ struct Btfld : Module {
 	};
 	enum OutputId {
 		SAW_OUTPUT,
-        ENUMS(BIT_OUTPUT, 4),
+        ENUMS(BIT_OUTPUT, NIBBLE),
         STEP_OUT_OUTPUT,
 		OUTPUTS_LEN
 	};
@@ -87,7 +92,7 @@ struct Btfld : Module {
 		ENUMS(INPUT_INDICATOR_LIGHT, 3),
 		ENUMS(CV_INDICATOR_LIGHT, 3),
         ENUMS(INJECT_INDICATOR_LIGHT, 3),
-        ENUMS(BIT_INDICATOR_LIGHT, 4),
+        ENUMS(BIT_INDICATOR_LIGHT, NIBBLE),
         STEP_INDICATOR_LIGHT,
 		LIGHTS_LEN
 	};
@@ -95,10 +100,13 @@ struct Btfld : Module {
     float feedback;
     float previousInputSignal;
     int previousSteps;
-    std::array<float, 4> bits;
+    std::array<float, NIBBLE> bits;
+
+    const int OVERSAMPLING = 128;
 
     ACCouplingFilter stepFilter;
     ACCouplingFilter sawFilter;
+    std::array<DelayedRiser, NIBBLE> delayedRisers;
 
 	Btfld() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -121,29 +129,49 @@ struct Btfld : Module {
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
         stepFilter.setDecay(0.25f * e.sampleRate);
         sawFilter.setDecay(0.25f * e.sampleRate);
+        for (auto& d : delayedRisers) {
+            d.setDelay(std::round(e.sampleRate * OVERSAMPLING / 20000.f));
+        }
+        for (auto& b : bits) { b = 0; }
     }
 
     void calculateInterpolatedBits(float first, float second) {
-        if (std::floor(second) - std::floor(first) < 0.01) {
+#if 1
+        auto increment = (second - first) / static_cast<float>(OVERSAMPLING);
+        // for (auto& b : bits) { b = 0; }
+        auto div = 1.f / OVERSAMPLING;
+        for (auto s = 0; s < OVERSAMPLING; ++s) {
+            auto subsample = static_cast<int>(std::floor(first + increment * s));
+            for (auto b = 0; b < NIBBLE; ++b) {
+                //bits[b] += delayedRisers[b].process(subsample & (1 << b)) ? div : 0;
+                const float filterTerm = 0.99f;
+                bits[b] = bits[b] * filterTerm + (delayedRisers[b].process(subsample & (1 << b)) ? (1.f - filterTerm) : 0.f);
+            }
+        }
+#else
+        auto lower = std::min(first, second);
+        auto higher = std::max(first, second);
+        if (std::floor(higher) - std::floor(lower) < 0.01) {
             for (auto i = 0; i < 4; ++i) {
-                bits[i] = (static_cast<int>(std::floor(first)) & (1 << i)) ? 1.f : 0.f;
+                bits[i] = (static_cast<int>(std::floor(lower)) & (1 << i)) ? 1.f : 0.f;
             }
             return;
         }
         for (auto& b : bits) { b = 0; }
-        auto totalWeightScalar = 1 / (second - first);
-        for (int step = std::floor(first); step <= std::floor(second - 0.001); ++step) {
+        auto totalWeightScalar = 1 / (higher - lower);
+        for (int step = std::floor(lower); step <= std::floor(higher - 0.001); ++step) {
             auto weight = 1.f;
-            if (step == std::floor(first)) {
-                weight -= first - std::floor(first);
+            if (step == std::floor(lower)) {
+                weight -= lower - std::floor(lower);
             }
-            if (step == std::floor(second)) {
-                weight -= std::ceil(second) - second;
+            if (step == std::floor(higher)) {
+                weight -= std::ceil(higher) - higher;
             }
             for (auto i = 0; i < 4; ++i) {
                 bits[i] += ((step & (1 << i)) ? 1.f : 0.f) * weight * totalWeightScalar;
             }
         }
+#endif
     }
 
     void setPosNegLight(int light, float voltage, float sampleTime) {
@@ -189,8 +217,8 @@ struct Btfld : Module {
             lights[LEVEL_LIGHT + l].setBrightnessSmooth(brightness, args.sampleTime);
         }
 
-        calculateInterpolatedBits(std::min(inputSignal, previousInputSignal), std::max(inputSignal, previousInputSignal));
-        for (auto i = 0; i < 4; ++i) {
+        calculateInterpolatedBits(previousInputSignal, previousInputSignal);
+        for (auto i = 0; i < NIBBLE; ++i) {
             outputs[BIT_OUTPUT + i].setVoltage(bits[i] * 10.f - (bipolar ? 5.f : 0.f));
             lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(bits[i], args.sampleTime);
         }
