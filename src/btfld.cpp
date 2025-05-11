@@ -18,24 +18,27 @@ struct DelayedRiser {
     void setDelay(int _delay) {
         numSamplesHigh = 0;
         delay = _delay;
+        previousInput = 0;
     }
 
-    bool process(bool input) {
-        bool result = input;
-#if true
-        if ((input) && (numSamplesHigh >= delay)) {
-            result = true;
-        } else if (input) {
-            result = false;
+    bool process(int input) {
+        if (input == 0) {
+            numSamplesHigh = false;
+            previousInput = input;
+            return false;
+        } else if (input == previousInput && numSamplesHigh >= delay) {
+            return true;
+        } else if (input == previousInput) {
             numSamplesHigh++;
+            return false;
         } else {
-            result = false;
             numSamplesHigh = 0;
+            previousInput = input;
+            return false;
         }
-#endif
-        return result;
     }
 
+    int previousInput;
     int delay;
     int numSamplesHigh;
 };
@@ -66,6 +69,8 @@ float saturate(float x) {
         return std::tanh(x - 9) + 9;
     }
 }
+
+
 
 struct Btfld : Module {
 	enum ParamId {
@@ -101,8 +106,8 @@ struct Btfld : Module {
     float previousInputSignal;
     int previousSteps;
     std::array<float, NIBBLE> bits;
-
-    const int OVERSAMPLING = 128;
+    std::array<float, NIBBLE> bitFilter;
+    const int OVERSAMPLING = 512;
 
     ACCouplingFilter stepFilter;
     ACCouplingFilter sawFilter;
@@ -133,19 +138,21 @@ struct Btfld : Module {
             d.setDelay(std::round(e.sampleRate * OVERSAMPLING / 20000.f));
         }
         for (auto& b : bits) { b = 0; }
+        for (auto& b : bitFilter) { b = 0; }
     }
 
     void calculateInterpolatedBits(float first, float second) {
 #if 1
         auto increment = (second - first) / static_cast<float>(OVERSAMPLING);
-        // for (auto& b : bits) { b = 0; }
+        for (auto& b : bits) { b = 0; }
         auto div = 1.f / OVERSAMPLING;
         for (auto s = 0; s < OVERSAMPLING; ++s) {
             auto subsample = static_cast<int>(std::floor(first + increment * s));
             for (auto b = 0; b < NIBBLE; ++b) {
                 //bits[b] += delayedRisers[b].process(subsample & (1 << b)) ? div : 0;
-                const float filterTerm = 0.99f;
-                bits[b] = bits[b] * filterTerm + (delayedRisers[b].process(subsample & (1 << b)) ? (1.f - filterTerm) : 0.f);
+                const float filterTerm = 0.999f;
+                bitFilter[b] = bitFilter[b] * filterTerm + (delayedRisers[b].process(subsample & (1 << b)) ? (1.f - filterTerm) : 0.f);
+                bits[b] += bitFilter[b] * div;
             }
         }
 #else
