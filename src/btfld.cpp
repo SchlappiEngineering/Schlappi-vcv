@@ -8,6 +8,7 @@
 
 #define NIBBLE 4
 #define ADAA_LEVEL 1
+#define UPSAMPLE_LEVEL 1
 
 struct DelayedRiser {
     // This emulates something that we observed in the oscilloscope: after the input went high, the output would be
@@ -186,6 +187,12 @@ struct Btfld : Module {
     ACCouplingFilter sawFilter;
     std::array<SecondOrderADAA, NIBBLE> interpolators;
 
+#if (UPSAMPLE_LEVEL != 1)
+    std::array<dsp::Upsampler<UPSAMPLE_LEVEL, 8>, 4> upsamplers;
+    std::array<dsp::Decimator<UPSAMPLE_LEVEL, 8>, 4> downsamplers;
+    std::array<float, UPSAMPLE_LEVEL> upsampledSamples;
+#endif
+
 	Btfld() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(GAIN_PARAM, 0.f, 2.f, 1.f, "Gain");
@@ -213,11 +220,20 @@ struct Btfld : Module {
     }
 
     void calculateInterpolatedBits(float x) {
+#if (UPSAMPLE_LEVEL == 1)
         bits[0] = interpolators[0].calc(x);
         bits[1] = interpolators[1].calc(x / 2.f);
         bits[2] = interpolators[2].calc(x / 4.f);
         bits[3] = interpolators[3].calc(x / 8.f);
-
+#else
+        for (int i = 0; i < NIBBLE; ++i) {
+            upsamplers[i].process(x / static_cast<float>(1 << i), &(upsampledSamples[0]));
+            for (int s = 0; s < UPSAMPLE_LEVEL; ++s) {
+                upsampledSamples[s] = interpolators[i].calc(upsampledSamples[s]);
+            }
+            bits[i] = downsamplers[i].process(&(upsampledSamples[0]));
+        }
+#endif
     }
 
     void setPosNegLight(int light, float voltage, float sampleTime) {
