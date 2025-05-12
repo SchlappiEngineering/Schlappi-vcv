@@ -2,10 +2,12 @@
 #include "widgets/schlappi_widgets.hpp"
 #include <iostream>
 #include <cmath>
+#include <math.h>
 #include <array>
 #include <vector>
 
 #define NIBBLE 4
+#define ADAA_LEVEL 1
 
 struct DelayedRiser {
     // This emulates something that we observed in the oscilloscope: after the input went high, the output would be
@@ -60,6 +62,77 @@ public:
     float xPrev, yPrev, scalar;
 };
 
+struct SecondOrderADAA {
+    SecondOrderADAA() {
+        x_1 = 0;
+        x_2 = 0;
+    }
+    float f(float x) {
+        return std::floor(fmodf(x, 2.f));
+    }
+
+    float ff(float x) {
+        return std::floor(x * 0.5f) + std::max(fmodf(x, 2.f) - 1.f, 0.f);
+    }
+
+    float fff(float x) {
+        auto x2 = x * 0.5f;
+        auto a = std::floor(x2) * (std::floor(x2 - 1.f)) + 2.f * (x2 - std::floor(x2)) * std::floor(x2);
+        auto b = std::floor(x2) * 0.5f;
+        if (fmodf(x, 2.f) > 1) {
+            auto num = fmodf(x, 2.f) - 1;
+            b += num * num * 0.5f;
+        }
+        return a + b;
+    }
+
+    float calcD(float x0, float x1) {
+        if (std::abs(x0 - x1) < epsilon) {
+            return ff((x0 + x1) * 0.5f);
+        }
+        return (fff(x0) - fff(x1)) / (x0 - x1);
+    }
+
+    float fallback(float x0, float x2) {
+        auto x_bar = (x0 + x2) * 0.5f;
+        auto delta = x_bar - x0;
+        if (delta < epsilon) {
+            return f((x_bar + x0) * 0.5f);
+        }
+        return (2.0 / delta) * (ff(x_bar) + (fff(x0) - fff(x_bar)) / delta);
+    }
+
+    float calc(float x) {
+        // if the integer part of the input is even, return 0, if odd return 1. Input must be rescaled beforehand.
+        float y;
+#if (ADAA_LEVEL == 0)
+        y = f(x);
+#endif
+
+#if (ADAA_LEVEL == 1)
+        if (std::abs(x - x_1) < epsilon) {
+            y = f((x + x_1) * 0.5f);
+        } else {
+            y = (ff(x) - ff(x_1)) / (x - x_1);
+        }
+#endif
+
+#if (ADAA_LEVEL == 2)
+        if (std::abs(x - x_1) < epsilon) {
+            y = fallback(x, x_2);
+        } else {
+            y = (2.f / (x - x_2)) * (calcD(x, x_1) - calcD(x_1, x_2));
+        }
+#endif
+        x_2 = x_1;
+        x_1 = x;
+        return y;
+    }
+    float epsilon = 0.0001;
+    float x_1;
+    float x_2;
+};
+
 float saturate(float x) {
     if ((-9 <= x) && (x <= 9)) {
         return x;
@@ -111,7 +184,7 @@ struct Btfld : Module {
 
     ACCouplingFilter stepFilter;
     ACCouplingFilter sawFilter;
-    std::array<DelayedRiser, NIBBLE> delayedRisers;
+    std::array<SecondOrderADAA, NIBBLE> interpolators;
 
 	Btfld() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -134,51 +207,17 @@ struct Btfld : Module {
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
         stepFilter.setDecay(0.25f * e.sampleRate);
         sawFilter.setDecay(0.25f * e.sampleRate);
-        for (auto& d : delayedRisers) {
-            d.setDelay(std::round(e.sampleRate * OVERSAMPLING / 20000.f));
-        }
+
         for (auto& b : bits) { b = 0; }
         for (auto& b : bitFilter) { b = 0; }
     }
 
-    void calculateInterpolatedBits(float first, float second) {
-#if 1
-        auto increment = (second - first) / static_cast<float>(OVERSAMPLING);
-        for (auto& b : bits) { b = 0; }
-        auto div = 1.f / OVERSAMPLING;
-        for (auto s = 0; s < OVERSAMPLING; ++s) {
-            auto subsample = static_cast<int>(std::floor(first + increment * s));
-            for (auto b = 0; b < NIBBLE; ++b) {
-                //bits[b] += delayedRisers[b].process(subsample & (1 << b)) ? div : 0;
-                const float filterTerm = 0.999f;
-                bitFilter[b] = bitFilter[b] * filterTerm + (delayedRisers[b].process(subsample & (1 << b)) ? (1.f - filterTerm) : 0.f);
-                bits[b] += bitFilter[b] * div;
-            }
-        }
-#else
-        auto lower = std::min(first, second);
-        auto higher = std::max(first, second);
-        if (std::floor(higher) - std::floor(lower) < 0.01) {
-            for (auto i = 0; i < 4; ++i) {
-                bits[i] = (static_cast<int>(std::floor(lower)) & (1 << i)) ? 1.f : 0.f;
-            }
-            return;
-        }
-        for (auto& b : bits) { b = 0; }
-        auto totalWeightScalar = 1 / (higher - lower);
-        for (int step = std::floor(lower); step <= std::floor(higher - 0.001); ++step) {
-            auto weight = 1.f;
-            if (step == std::floor(lower)) {
-                weight -= lower - std::floor(lower);
-            }
-            if (step == std::floor(higher)) {
-                weight -= std::ceil(higher) - higher;
-            }
-            for (auto i = 0; i < 4; ++i) {
-                bits[i] += ((step & (1 << i)) ? 1.f : 0.f) * weight * totalWeightScalar;
-            }
-        }
-#endif
+    void calculateInterpolatedBits(float x) {
+        bits[0] = interpolators[0].calc(x);
+        bits[1] = interpolators[1].calc(x / 2.f);
+        bits[2] = interpolators[2].calc(x / 4.f);
+        bits[3] = interpolators[3].calc(x / 8.f);
+
     }
 
     void setPosNegLight(int light, float voltage, float sampleTime) {
@@ -224,7 +263,7 @@ struct Btfld : Module {
             lights[LEVEL_LIGHT + l].setBrightnessSmooth(brightness, args.sampleTime);
         }
 
-        calculateInterpolatedBits(previousInputSignal, previousInputSignal);
+        calculateInterpolatedBits(inputSignal);
         for (auto i = 0; i < NIBBLE; ++i) {
             outputs[BIT_OUTPUT + i].setVoltage(bits[i] * 10.f - (bipolar ? 5.f : 0.f));
             lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(bits[i], args.sampleTime);
