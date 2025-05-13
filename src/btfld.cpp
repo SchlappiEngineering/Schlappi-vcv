@@ -8,7 +8,7 @@
 
 #define NIBBLE 4
 #define ADAA_LEVEL 1
-#define UPSAMPLE_LEVEL 1
+#define UPSAMPLE_LEVEL 4
 
 struct DelayedRiser {
     // This emulates something that we observed in the oscilloscope: after the input went high, the output would be
@@ -69,14 +69,23 @@ struct SecondOrderADAA {
         x_2 = 0;
     }
     float f(float x) {
+        if (x <= 0) {
+            return 0;
+        }
         return std::floor(fmodf(x, 2.f));
     }
 
     float ff(float x) {
+        if (x <= 0) {
+            return 0;
+        }
         return std::floor(x * 0.5f) + std::max(fmodf(x, 2.f) - 1.f, 0.f);
     }
 
     float fff(float x) {
+        if (x <= 0) {
+            return 0;
+        }
         auto x2 = x * 0.5f;
         auto a = std::floor(x2) * (std::floor(x2 - 1.f)) + 2.f * (x2 - std::floor(x2)) * std::floor(x2);
         auto b = std::floor(x2) * 0.5f;
@@ -209,6 +218,9 @@ struct Btfld : Module {
         configOutput(STEP_OUT_OUTPUT, "Step");
 
         feedback = 0; previousSteps = 0; previousInputSignal = 0;
+#if (UPSAMPLE_LEVEL > 1)
+        upsamplers.fill({0.4});
+#endif
 	}
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
