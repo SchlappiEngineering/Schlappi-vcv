@@ -6,6 +6,15 @@
 #include <cmath>
 
 struct SubsampleSchmittTrigger {
+    /*
+     * This trigger uses a method similar to antiderivative antialiasing to smooth the output values of trigger,
+     * resulting in reduced aliasing. It works by quadratically interpolating the incoming signal, and asking, on each
+     * sample, what amount of the previous sample was spent above the high threshold if increasing, or above the low
+     * threshold if decreasing. The output is set to that proportion, rather than to a binary value.
+     *
+     * Returns between 0 and 1 for off and on.
+     */
+
     // Defined in https://vcvrack.com/manual/VoltageStandards
     const float TRIGGER_LOW_THRESHOLD = 0.1f;
     const float TRIGGER_HIGH_THRESHOLD = 1.5f;
@@ -26,58 +35,73 @@ struct SubsampleSchmittTrigger {
         y = 0;
     }
 
-    float process(float x) {
-        float a, b, c;
-        b = prev_dx;
-        c = prev_x;
-        a = x - b - c;
-        float dx = 2 * a + b;
-        if (isHigh && (x > TRIGGER_LOW_THRESHOLD)) {
-            y = 1.f;
-        } else if (!isHigh && (x < TRIGGER_HIGH_THRESHOLD)) {
-            y = 0.f;
-        } else if (!isHigh) {
-            float insideSqrt = b*b - 4*a*(c-TRIGGER_HIGH_THRESHOLD);
-            if (insideSqrt < 0) {
-                // shouldn't happen
+    float process(float x, bool calculateSubsample) {
+        if (calculateSubsample) {
+            float a, b, c;
+            b = prev_dx;
+            c = prev_x;
+            a = x - b - c;
+            float dx = 2 * a + b;
+            // over time, dx has a tendency to creep upwards
+            dx = std::min(std::max(-2.f, dx), 2.f);
+            if (isHigh && (x > TRIGGER_LOW_THRESHOLD)) {
                 y = 1.f;
-            } else {
-                float sq = sqrt(insideSqrt);
-                float s1 = (-b - sq) / (2 * a);
-                float s2 = (-b + sq) / (2 * a);
-                if ((0 <= s1) && (s1 <= 1)) {
-                    y = 1 - s1;
-                } else if ((0 <= s2) && (s2 <= 1)) {
-                    y = 1 - s2;
-                } else {
+            } else if (!isHigh && (x < TRIGGER_HIGH_THRESHOLD)) {
+                y = 0.f;
+            } else if (!isHigh) {
+                // quadratic formula to calculate when the curve crosses y=threshold
+                float insideSqrt = b*b - 4*a*(c-TRIGGER_HIGH_THRESHOLD);
+                if (insideSqrt < 0) {
                     // shouldn't happen
                     y = 1.f;
+                } else {
+                    float sq = sqrt(insideSqrt);
+                    float s1 = (-b - sq) / (2 * a);
+                    float s2 = (-b + sq) / (2 * a);
+                    if ((0 <= s1) && (s1 <= 1)) {
+                        y = 1 - s1;
+                    } else if ((0 <= s2) && (s2 <= 1)) {
+                        y = 1 - s2;
+                    } else {
+                        // shouldn't happen
+                        y = 1.f;
+                    }
                 }
+                isHigh = true;
+            } else {
+                float insideSqrt = b * b - 4 * a * (c - TRIGGER_LOW_THRESHOLD);
+                if (insideSqrt < 0) {
+                    // shouldn't happen
+                    y = 1.f;
+                } else {
+                    float sq = sqrt(insideSqrt);
+                    float s1 = (-b - sq) / (2 * a);
+                    float s2 = (-b + sq) / (2 * a);
+                    if ((0 <= s1) && (s1 <= 1)) {
+                        y = s1;
+                    } else if ((0 <= s2) && (s2 <= 1)) {
+                        y = s2;
+                    } else {
+                        // shouldn't happen
+                        y = 1.f;
+                    }
+                }
+                isHigh = false;
             }
-            isHigh = true;
+            prev_dx = dx;
+            prev_x = x;
+            return y;
         } else {
-            float insideSqrt = b * b - 4 * a * (c - TRIGGER_LOW_THRESHOLD);
-            if (insideSqrt < 0) {
-                // shouldn't happen
-                y = 1.f;
-            } else {
-                float sq = sqrt(insideSqrt);
-                float s1 = (-b - sq) / (2 * a);
-                float s2 = (-b + sq) / (2 * a);
-                if ((0 <= s1) && (s1 <= 1)) {
-                    y = s1;
-                } else if ((0 <= s2) && (s2 <= 1)) {
-                    y = s2;
-                } else {
-                    // shouldn't happen
-                    y = 1.f;
-                }
+            if (isHigh && (x < TRIGGER_LOW_THRESHOLD)) {
+                isHigh = false;
+            } else if ((!isHigh) && (x > TRIGGER_HIGH_THRESHOLD)) {
+                isHigh = true;
             }
-            isHigh = false;
+            y = isHigh ? 1.f : 0.f;
+            prev_dx = 0;
+            prev_x = x;
+            return y;
         }
-        prev_dx = dx;
-        prev_x = x;
-        return y;
     }
 
     float getValue() {
@@ -120,6 +144,7 @@ struct BTMX : Module {
 
     unsigned char inputA, inputB, mix;
 
+    bool doAntiAlias;
 
     BTMX() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -147,6 +172,8 @@ struct BTMX : Module {
         configOutput(MIX_OUTPUT + 2, "Mix 3 ★ 7");
 		configOutput(MIX_OUTPUT + 3, "Mix 4 ★ 8");
 
+        doAntiAlias = false;
+
         for (auto& trigger : triggers) {
             trigger.reset();
         }
@@ -158,7 +185,7 @@ struct BTMX : Module {
         mix = 0;
         for (int i = 0; i < 8; ++i) {
             auto inputVoltage = params[SWITCH_PARAM + i].getValue() > 0.5 ? inputs[IN_INPUT + i].getVoltage() : 0;
-            triggers[i].process(inputVoltage);
+            triggers[i].process(inputVoltage, doAntiAlias);
             lights[IN_INDICATOR_LIGHT + i].setBrightnessSmooth(triggers[i].getValue(), args.sampleTime);
         }
 
@@ -210,12 +237,13 @@ struct BTMX : Module {
 struct BTMXWidget : ModuleWidget {
 	BTMXWidget(BTMX* module) {
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/BTMX.svg")));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/BTMX.svg"),
+                             asset::plugin(pluginInstance, "res/BTMX-dark.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(5.733, 15.033)), module, BTMX::SWITCH_PARAM + 0));
         addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(5.733, 30.23)), module, BTMX::SWITCH_PARAM + 1));
@@ -228,21 +256,21 @@ struct BTMXWidget : ModuleWidget {
         addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(31.704, 15.033)), module, BTMX::LOGIC_MODE_A));
         addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(31.704, 30.23)), module, BTMX::LOGIC_MODE_B));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(5.733, 72.81)), module, BTMX::IN_INPUT + 0));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(5.733, 85.794)), module, BTMX::IN_INPUT + 1));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(5.733, 98.779)), module, BTMX::IN_INPUT + 2));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(5.733, 111.763)), module, BTMX::IN_INPUT + 3));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(18.718, 72.81)), module, BTMX::IN_INPUT + 4));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(18.718, 85.794)), module, BTMX::IN_INPUT + 5));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(18.718, 98.779)), module, BTMX::IN_INPUT + 6));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(18.718, 111.763)), module, BTMX::IN_INPUT + 7));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(5.733, 72.81)), module, BTMX::IN_INPUT + 0));
+        addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(5.733, 85.794)), module, BTMX::IN_INPUT + 1));
+        addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(5.733, 98.779)), module, BTMX::IN_INPUT + 2));
+        addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(5.733, 111.763)), module, BTMX::IN_INPUT + 3));
+        addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(18.718, 72.81)), module, BTMX::IN_INPUT + 4));
+        addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(18.718, 85.794)), module, BTMX::IN_INPUT + 5));
+        addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(18.718, 98.779)), module, BTMX::IN_INPUT + 6));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(18.718, 111.763)), module, BTMX::IN_INPUT + 7));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.871, 59.825)), module, BTMX::STEP_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(31.871, 59.825)), module, BTMX::STEP_OUTPUT));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.871, 72.81)), module, BTMX::MIX_OUTPUT + 0));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.871, 85.794)), module, BTMX::MIX_OUTPUT + 1));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.703, 98.779)), module, BTMX::MIX_OUTPUT + 2));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.703, 111.763)), module, BTMX::MIX_OUTPUT + 3));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(31.871, 72.81)), module, BTMX::MIX_OUTPUT + 0));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(31.871, 85.794)), module, BTMX::MIX_OUTPUT + 1));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(31.703, 98.779)), module, BTMX::MIX_OUTPUT + 2));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(31.703, 111.763)), module, BTMX::MIX_OUTPUT + 3));
 
 		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(38.026, 53.67)), module, BTMX::STEP_INDICATOR_LIGHT));
 
@@ -260,6 +288,12 @@ struct BTMXWidget : ModuleWidget {
         addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(38.026, 92.624)), module, BTMX::MIX_INDICATOR_LIGHT + 2));
         addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(38.026, 105.271)), module, BTMX::MIX_INDICATOR_LIGHT + 3));
 	}
+
+    void appendContextMenu(Menu* menu) override {
+        auto module = getModule<BTMX>();
+        menu->addChild(new MenuSeparator);
+        menu->addChild(createBoolPtrMenuItem("Anti-alias", "", &module->doAntiAlias));
+    }
 };
 
 

@@ -315,25 +315,26 @@ struct Btfld : Module {
 struct BtfldWidget : ModuleWidget {
 	BtfldWidget(Btfld* module) {
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/btfld.svg")));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/btfld.svg"),
+                             asset::plugin(pluginInstance, "res/btfld-dark.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		addParam(createParamCentered<SchlappiSilverKnob>(mm2px(Vec(15.22, 16.406)), module, Btfld::GAIN_PARAM));
 		addParam(createParamCentered<SchlappiSilverKnob>(mm2px(Vec(15.22, 41.785)), module, Btfld::CV_PARAM));
 		addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(7.217, 58.613)), module, Btfld::RANGE_PARAM));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.196, 72.886)), module, Btfld::INPUT_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.196, 85.892)), module, Btfld::CV_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.196, 98.729)), module, Btfld::INJECT_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(7.196, 72.886)), module, Btfld::INPUT_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(7.196, 85.892)), module, Btfld::CV_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(7.196, 98.729)), module, Btfld::INJECT_INPUT));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.541, 60.048)), module, Btfld::SAW_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.541, 72.886)), module, Btfld::BIT_OUTPUT + 3));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.541, 85.892)), module, Btfld::BIT_OUTPUT + 2));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.539, 98.809)), module, Btfld::BIT_OUTPUT + 1));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.541, 111.736)), module, Btfld::BIT_OUTPUT + 0));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(7.196, 111.736)), module, Btfld::STEP_OUT_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(20.541, 60.048)), module, Btfld::SAW_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(20.541, 72.886)), module, Btfld::BIT_OUTPUT + 3));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(20.541, 85.892)), module, Btfld::BIT_OUTPUT + 2));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(20.539, 98.809)), module, Btfld::BIT_OUTPUT + 1));
+        addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(20.541, 111.736)), module, Btfld::BIT_OUTPUT + 0));
+        addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(7.196, 111.736)), module, Btfld::STEP_OUT_OUTPUT));
 
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 11.655)), module, Btfld::LEVEL_LIGHT + 7));
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(3.247, 16.659)), module, Btfld::LEVEL_LIGHT + 6));

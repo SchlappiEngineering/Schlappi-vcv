@@ -271,12 +271,13 @@ struct Nibbler : Module {
 struct NibblerWidget : ModuleWidget {
 	NibblerWidget(Nibbler* module) {
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/nibbler.svg")));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/nibbler.svg"),
+                             asset::plugin(pluginInstance, "res/nibbler-dark.svg")));
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
         addParam(createParamCentered<SchlappiCherryMXBrown>(mm2px(Vec(29.56, 24.661)), module, Nibbler::RESET_PARAM));
         addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(10.494, 16.384)), module, Nibbler::ADD_8_PARAM));
@@ -288,25 +289,25 @@ struct NibblerWidget : ModuleWidget {
 		addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(10.494, 46.831)), module, Nibbler::ADD_2_PARAM));
 		addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(10.494, 62.075)), module, Nibbler::ADD_1_PARAM));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.5, 72.674)), module, Nibbler::CARRY_IN_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(36.506, 72.674)), module, Nibbler::GATE_8_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.515, 85.681)), module, Nibbler::CLOCK_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.5, 85.681)), module, Nibbler::SHIFT_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(36.506, 85.681)), module, Nibbler::GATE_4_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.515, 98.687)), module, Nibbler::RESET_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.5, 98.687)), module, Nibbler::SHIFT_DATA_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(36.506, 98.687)), module, Nibbler::GATE_2_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.515, 111.693)), module, Nibbler::SUB_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.5, 111.693)), module, Nibbler::DATA_XOR_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(36.506, 111.693)), module, Nibbler::GATE_1_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(23.5, 72.674)), module, Nibbler::CARRY_IN_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(36.506, 72.674)), module, Nibbler::GATE_8_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(10.515, 85.681)), module, Nibbler::CLOCK_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(23.5, 85.681)), module, Nibbler::SHIFT_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(36.506, 85.681)), module, Nibbler::GATE_4_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(10.515, 98.687)), module, Nibbler::RESET_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(23.5, 98.687)), module, Nibbler::SHIFT_DATA_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(36.506, 98.687)), module, Nibbler::GATE_2_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(10.515, 111.693)), module, Nibbler::SUB_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(23.5, 111.693)), module, Nibbler::DATA_XOR_INPUT));
+		addInput(createInputCentered<ThemedPJ301MPort>(mm2px(Vec(36.506, 111.693)), module, Nibbler::GATE_1_INPUT));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 46.535)), module, Nibbler::OFFSET_STEP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(36.506, 59.668)), module, Nibbler::STEP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 59.668)), module, Nibbler::CARRY_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 72.717)), module, Nibbler::OUT_8_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 85.681)), module, Nibbler::OUT_4_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 98.687)), module, Nibbler::OUT_2_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.491, 111.693)), module, Nibbler::OUT_1_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(49.491, 46.535)), module, Nibbler::OFFSET_STEP_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(36.506, 59.668)), module, Nibbler::STEP_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(49.491, 59.668)), module, Nibbler::CARRY_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(49.491, 72.717)), module, Nibbler::OUT_8_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(49.491, 85.681)), module, Nibbler::OUT_4_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(49.491, 98.687)), module, Nibbler::OUT_2_OUTPUT));
+		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(49.491, 111.693)), module, Nibbler::OUT_1_OUTPUT));
 
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(55.53, 40.666)), module, Nibbler::OFFSET_STEP_LIGHT));
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(42.861, 53.503)), module, Nibbler::STEP_LIGHT));
