@@ -5,8 +5,8 @@
 #include <iostream>
 #include <cmath>
 
-#define UPSAMPLE_RATIO 4
-#define UPSAMPLE_QUALITY 4
+#define UPSAMPLE_RATIO 16
+#define UPSAMPLE_QUALITY 2
 
 struct BTMX : Module {
 	enum ParamId {
@@ -46,8 +46,6 @@ struct BTMX : Module {
     std::array<std::array<float, UPSAMPLE_RATIO>, 8> upsampledTriggers;
     std::array<std::array<float, UPSAMPLE_RATIO>, 4> upsampledMixOuts;
 
-    unsigned char inputA, inputB, mix;
-
     BTMX() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(SWITCH_PARAM + 0, 0.f, 1.f, 0.f, "Switch 1");
@@ -83,9 +81,6 @@ struct BTMX : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
-        inputA = 0;
-        inputB = 0;
-        mix = 0;
         for (int i = 0; i < 8; ++i) {
             auto inputVoltage = params[SWITCH_PARAM + i].getValue() > 0.5 ? inputs[IN_INPUT + i].getVoltage() : 0;
             upsamplers[i].process(inputVoltage, &upsampledTriggers[i][0]);
@@ -134,17 +129,25 @@ struct BTMX : Module {
             }
         }
 
+
+
         for (auto row = 0; row < 4; ++row) {
             mixOuts[row] = decimators[row].process(&upsampledMixOuts[row][0]);
         }
+
+        auto stepOut =
+                mixOuts[0] * 8 +
+                mixOuts[1] * 4 +
+                mixOuts[2] * 2 +
+                mixOuts[1] * 1;
 
         for (auto i = 0; i < 4; ++i) {
             outputs[MIX_OUTPUT + i].setVoltage(mixOuts[i] * 10.f);
             lights[MIX_INDICATOR_LIGHT + i].setBrightnessSmooth(mixOuts[i], args.sampleTime);
         }
 
-        outputs[STEP_OUTPUT].setVoltage(static_cast<float>(mix & 15) * (10.f/16.f));
-        lights[STEP_INDICATOR_LIGHT].setBrightness(static_cast<float>(mix & 15) * (1.f/15.f));
+        outputs[STEP_OUTPUT].setVoltage(stepOut * (10.f / 15.f));
+        lights[STEP_INDICATOR_LIGHT].setBrightnessSmooth(stepOut * (1.f / 15.f), args.sampleTime);
     }
 };
 
@@ -187,7 +190,7 @@ struct BTMXWidget : ModuleWidget {
 		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(31.703, 98.779)), module, BTMX::MIX_OUTPUT + 2));
 		addOutput(createOutputCentered<ThemedPJ301MPort>(mm2px(Vec(31.703, 111.763)), module, BTMX::MIX_OUTPUT + 3));
 
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(38.026, 53.67)), module, BTMX::STEP_INDICATOR_LIGHT));
+		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(38.026, 53.67)), module, BTMX::STEP_INDICATOR_LIGHT));
 
 		addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(12.057, 66.317)), module, BTMX::IN_INDICATOR_LIGHT + 0));
         addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(12.057, 79.302)), module, BTMX::IN_INDICATOR_LIGHT + 1));
