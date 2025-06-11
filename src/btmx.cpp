@@ -6,7 +6,7 @@
 #include <cmath>
 
 #define UPSAMPLE_RATIO 16
-#define UPSAMPLE_QUALITY 2
+#define UPSAMPLE_QUALITY 4
 
 struct BTMX : Module {
 	enum ParamId {
@@ -43,8 +43,9 @@ struct BTMX : Module {
 
     std::array<dsp::Decimator<UPSAMPLE_RATIO, UPSAMPLE_QUALITY>, 4> decimators;
     std::array<dsp::Upsampler<UPSAMPLE_RATIO, UPSAMPLE_QUALITY>, 8> upsamplers;
-    std::array<std::array<float, UPSAMPLE_RATIO>, 8> upsampledTriggers;
+    std::array<std::array<bool, UPSAMPLE_RATIO>, 8> upsampledTriggers;
     std::array<std::array<float, UPSAMPLE_RATIO>, 4> upsampledMixOuts;
+    std::array<float, UPSAMPLE_RATIO> workingBuffer;
 
     BTMX() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -76,17 +77,17 @@ struct BTMX : Module {
             trigger.reset();
         }
 
-        std::fill(upsamplers.begin(), upsamplers.end(), 0.5f);
+        std::fill(upsamplers.begin(), upsamplers.end(), 0.4f);
         std::fill(decimators.begin(), decimators.end(), 0.8f);
 	}
 
 	void process(const ProcessArgs& args) override {
         for (int i = 0; i < 8; ++i) {
             auto inputVoltage = params[SWITCH_PARAM + i].getValue() > 0.5 ? inputs[IN_INPUT + i].getVoltage() : 0;
-            upsamplers[i].process(inputVoltage, &upsampledTriggers[i][0]);
-            for (auto& subsamp : upsampledTriggers[i]) {
-                triggers[i].process(subsamp, 0.1f, 1.0f);
-                subsamp = triggers[i].isHigh() ? 1.f : 0.f;
+            upsamplers[i].process(inputVoltage, &workingBuffer[0]);
+            for (int samp = 0; samp < UPSAMPLE_RATIO; ++samp) {
+                triggers[i].process(workingBuffer[samp]);
+                upsampledTriggers[i][samp] = triggers[i].isHigh();
             }
             lights[IN_INDICATOR_LIGHT + i].setBrightnessSmooth(triggers[i].isHigh() ? 1.f : 0.f, args.sampleTime);
         }
@@ -100,15 +101,18 @@ struct BTMX : Module {
             for (auto row = 0; row < 4; ++row) {
                 for (auto subsample = 0; subsample < UPSAMPLE_RATIO; ++subsample) {
                     upsampledMixOuts[row][subsample] =
-                            std::min(upsampledTriggers[row][subsample], upsampledTriggers[row+4][subsample]);
+                            (upsampledTriggers[row][subsample] && upsampledTriggers[row+4][subsample]) ? 1.f : 0.f;
                 }
             }
         } else if (logicMode == 1) {
             // ADD
-            for (auto row = 0; row < 4; ++row) {
-                for (auto subsample = 0; subsample < UPSAMPLE_RATIO; ++subsample) {
-                    upsampledMixOuts[row][subsample] =
-                            std::abs(upsampledTriggers[row][subsample] - upsampledTriggers[row+4][subsample]);
+            for (auto subsample = 0; subsample < UPSAMPLE_RATIO; ++subsample) {
+                int carry = 0;
+                for (int row = 3; row >= 0; --row) {
+                    carry += upsampledTriggers[row][subsample] ? 1 : 0;
+                    carry += upsampledTriggers[row+4][subsample] ? 1 : 0;
+                    upsampledMixOuts[row][subsample] = (carry & 1) ? 1.f : 0.f;
+                    carry >>= 1;
                 }
             }
         } else if (logicMode == 2) {
@@ -116,7 +120,7 @@ struct BTMX : Module {
             for (auto row = 0; row < 4; ++row) {
                 for (auto subsample = 0; subsample < UPSAMPLE_RATIO; ++subsample) {
                     upsampledMixOuts[row][subsample] =
-                            std::max(upsampledTriggers[row][subsample], upsampledTriggers[row + 4][subsample]);
+                            (upsampledTriggers[row][subsample] || upsampledTriggers[row + 4][subsample]) ? 1.f : 0.f;
                 }
             }
         } else if (logicMode == 3) {
@@ -124,13 +128,10 @@ struct BTMX : Module {
             for (auto row = 0; row < 4; ++row) {
                 for (auto subsample = 0; subsample < UPSAMPLE_RATIO; ++subsample) {
                     upsampledMixOuts[row][subsample] =
-                            std::abs(upsampledTriggers[row][subsample] - upsampledTriggers[row + 4][subsample]);
+                            (upsampledTriggers[row][subsample] != upsampledTriggers[row + 4][subsample]) ? 1.f : 0.f;
                 }
             }
         }
-
-
-
         for (auto row = 0; row < 4; ++row) {
             mixOuts[row] = decimators[row].process(&upsampledMixOuts[row][0]);
         }
