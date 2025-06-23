@@ -221,8 +221,9 @@ struct Btfld : Module {
 
         feedback = 0; previousSteps = 0; previousInputSignal = 0;
 #if (UPSAMPLE_LEVEL > 1)
-        std::fill(upsamplers.begin(), upsamplers.end(), 0.1);
-
+        std::cout << "fill upsampelrs\n";
+        std::fill(upsamplers.begin(), upsamplers.end(), 0.1f);
+        std::fill(downsamplers.begin(), downsamplers.end(), 0.9f);
         float kernelSum = 0;
         for (auto i = 0; i < UPSAMPLE_LEVEL * 8; ++i) {
             kernelSum += upsamplers[0].kernel[i];
@@ -253,11 +254,11 @@ struct Btfld : Module {
         bits[3] = interpolators[3].calc(x / 8.f);
 #else
         for (int i = 0; i < NIBBLE; ++i) {
-            upsamplers[i].process(x / static_cast<float>(1 << i), &(upsampledSamples[0]));
+            upsamplers[i].process(x / static_cast<float>(1 << i), upsampledSamples.data());
             for (int s = 0; s < UPSAMPLE_LEVEL; ++s) {
                 upsampledSamples[s] = interpolators[i].calc(upsampledSamples[s] * upsamplerGain) * downsamplerGain;
             }
-            bits[i] = downsamplers[i].process(&(upsampledSamples[0]));
+            bits[i] = downsamplers[i].process(upsampledSamples.data());
         }
 #endif
     }
