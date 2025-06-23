@@ -47,6 +47,8 @@ struct BTMX : Module {
     std::array<std::array<float, UPSAMPLE_RATIO>, 4> upsampledMixOuts;
     std::array<float, UPSAMPLE_RATIO> workingBuffer;
 
+    float gateVoltage;
+
     BTMX() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(SWITCH_PARAM + 0, 0.f, 1.f, 0.f, "Switch 1");
@@ -77,13 +79,21 @@ struct BTMX : Module {
             trigger.reset();
         }
 
-        std::fill(upsamplers.begin(), upsamplers.end(), 0.4f);
+        std::fill(upsamplers.begin(), upsamplers.end(), 0.2f);
         std::fill(decimators.begin(), decimators.end(), 0.8f);
-	}
+
+        float kernelSum = 0;
+        for (auto i = 0; i < UPSAMPLE_RATIO * UPSAMPLE_QUALITY; ++i) {
+            kernelSum += decimators[0].kernel[i];
+        }
+        gateVoltage = 10.f / kernelSum;
+    }
 
 	void process(const ProcessArgs& args) override {
         for (int i = 0; i < 8; ++i) {
-            auto inputVoltage = params[SWITCH_PARAM + i].getValue() > 0.5 ? inputs[IN_INPUT + i].getVoltage() : 0;
+            auto inputVoltage = params[SWITCH_PARAM + i].getValue() > 0.5 ?
+                    (inputs[IN_INPUT + i].isConnected() ? inputs[IN_INPUT + i].getVoltage() : 10.f) :
+                    0;
             upsamplers[i].process(inputVoltage, &workingBuffer[0]);
             for (int samp = 0; samp < UPSAMPLE_RATIO; ++samp) {
                 triggers[i].process(workingBuffer[samp]);
@@ -143,7 +153,7 @@ struct BTMX : Module {
                 mixOuts[1] * 1;
 
         for (auto i = 0; i < 4; ++i) {
-            outputs[MIX_OUTPUT + i].setVoltage(mixOuts[i] * 10.f);
+            outputs[MIX_OUTPUT + i].setVoltage(mixOuts[i] * gateVoltage);
             lights[MIX_INDICATOR_LIGHT + i].setBrightnessSmooth(mixOuts[i], args.sampleTime);
         }
 

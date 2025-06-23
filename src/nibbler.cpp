@@ -97,6 +97,11 @@ struct Nibbler : Module {
 
     std::array<unsigned char, NIBBLER_UPSAMPLE_RATIO> accumulatorOutBytes;
 
+    dsp::Decimator<NIBBLER_UPSAMPLE_RATIO, NIBBLER_UPSAMPLE_QUALITY> stepDecimator;
+    dsp::Decimator<NIBBLER_UPSAMPLE_RATIO, NIBBLER_UPSAMPLE_QUALITY> offsetStepDecimator;
+    std::array<float, NIBBLER_UPSAMPLE_RATIO> stepDecimatorInput;
+    std::array<float, NIBBLER_UPSAMPLE_RATIO> offsetStepDecimatorInput;
+
     const std::array<InputId, NIBBLER_NUM_BITS> gateInputIds {
         GATE_1_INPUT, GATE_2_INPUT, GATE_4_INPUT, GATE_8_INPUT
     };
@@ -114,6 +119,7 @@ struct Nibbler : Module {
     };
 
     float out8;
+    float gateVoltage;
 
 	Nibbler() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -150,6 +156,14 @@ struct Nibbler : Module {
         // std::fill(gateUpsamplers.begin(), gateUpsamplers.end(), 0.4f);
         std::fill(bitOutDecimators.begin(), bitOutDecimators.end(), 0.8f);
         std::fill(accumulatorOutBytes.begin(), accumulatorOutBytes.end(), 0);
+
+        // the convolution kernel in the vcvrack upsampler/decimator does not sum to 1, so we have to compensate that
+        // when generating upsampled pulses, so that they will downsample to 10 volts.
+        float kernelSum = 0;
+        for (auto i = 0; i < NIBBLER_UPSAMPLE_RATIO * NIBBLER_UPSAMPLE_QUALITY; ++i) {
+            kernelSum += bitOutDecimators[0].kernel[i];
+        }
+        gateVoltage = 10.f / kernelSum;
     }
 
 	void process(const ProcessArgs& args) override {
@@ -169,10 +183,12 @@ struct Nibbler : Module {
         }
 
         carryInUTrig.process(inputs[CARRY_IN_INPUT].getVoltage());
+
         for (auto s = 0; s < NIBBLER_UPSAMPLE_RATIO; ++s) {
             carryInUTrig.trigger.process(carryInUTrig.input[s], 0.1f, 1.0f);
             inputBytes[s] += carryInUTrig.trigger.isHigh() ? 1 : 0;
         }
+
         lights[CARRY_IN_LIGHT].setBrightnessSmooth(carryInUTrig.trigger.isHigh(), args.sampleTime);
 
         unsigned char add = 0;
@@ -195,6 +211,7 @@ struct Nibbler : Module {
                 inputBytes[s] ^= (1 << 4); // invert the carry: we really want 16-x, in 2s compliment, not 32-x
             }
         }
+
         lights[SUB_LIGHT].setBrightnessSmooth((subtractSwitch != subtractUTrig.trigger.isHigh()) ? 1.f : 0.f, args.sampleTime);
 
 
@@ -210,20 +227,28 @@ struct Nibbler : Module {
 
         bool resetButtonDown = params[RESET_PARAM].getValue() > 0.5f;
 
+        lights[RESET_LIGHT].setBrightnessSmooth(resetButtonDown, args.sampleTime);
+
+        bool async = (params[ASYNC_SYNC_PARAM].getValue() > 0.5f) || !inputs[CLOCK_INPUT].isConnected();
+
+
         for (auto s = 0; s < NIBBLER_UPSAMPLE_RATIO; ++s) {
             accumulatorOutBytes[s] = accumulatorOutBytes[(s+NIBBLER_UPSAMPLE_RATIO-1)%NIBBLER_UPSAMPLE_RATIO]; // prev
+            inputBytes[s] += accumulatorOutBytes[s] & 15;
             shiftDataUTrig.trigger.process(shiftDataUTrig.input[s]);
             shiftXorUTrig.trigger.process(shiftXorUTrig.input[s]);
-            shiftUTrig.process(shiftUTrig.input[s]);
-
-            if (clockUTrig.trigger.process(clockUTrig.input[s], 0.1f, 1.f)) {
-                auto shiftInput = (shiftDataUTrig.trigger.isHigh() != shiftXorUTrig.trigger.isHigh());
-                accumulatorOutBytes[s] += inputBytes[s];
+            auto hiShift = shiftUTrig.trigger.process(shiftUTrig.input[s], 0.1f, 1.f);
+            auto hiClock = clockUTrig.trigger.process(clockUTrig.input[s], 0.1f, 1.f);
+            if (hiClock || (async && hiShift)) {
+                accumulatorOutBytes[s] = inputBytes[s];
 
                 if (shiftUTrig.trigger.isHigh()) {
                     accumulatorOutBytes[s] <<= 1;
-                    accumulatorOutBytes[s] +=
-                            (shiftDataUTrig.trigger.isHigh() != shiftXorUTrig.trigger.isHigh()) ? 1 : 0;
+
+                    auto s1 = inputs[SHIFT_DATA_INPUT].isConnected() ? shiftDataUTrig.trigger.isHigh() : out8;
+                    auto s2 = shiftXorUTrig.trigger.isHigh();
+
+                    accumulatorOutBytes[s] += (s1 != s2) ? 1 : 0;
                 }
             }
 
@@ -233,11 +258,18 @@ struct Nibbler : Module {
             }
         }
 
-        bool async = (params[ASYNC_SYNC_PARAM].getValue() > 0.5f) || !inputs[CLOCK_INPUT].isConnected();
+        lights[CLOCK_LIGHT].setBrightnessSmooth(clockUTrig.trigger.isHigh(), args.sampleTime);
+        lights[SHIFT_LIGHT].setBrightnessSmooth(shiftUTrig.trigger.isHigh(), args.sampleTime);
+        lights[SHIFT_DATA_LIGHT].setBrightnessSmooth(inputs[SHIFT_DATA_INPUT].isConnected() ? shiftDataUTrig.trigger.isHigh() : out8, args.sampleTime);
+        lights[DATA_XOR_LIGHT].setBrightnessSmooth(shiftXorUTrig.trigger.isHigh(), args.sampleTime);
+
+
+
 
         for (auto b = 0; b < NIBBLER_NUM_BITS + 1; ++b) {
             for (auto s = 0; s < NIBBLER_UPSAMPLE_RATIO; ++s) {
-                upsampledBitOutput[b][s] = (accumulatorOutBytes[s] & (1 << b)) ? 10.f : 0.f;
+                auto outByte = async ? inputBytes[s] : accumulatorOutBytes[s];
+                upsampledBitOutput[b][s] = (outByte & (1 << b)) ? gateVoltage : 0.f;
             }
             auto outVolt = bitOutDecimators[b].process(upsampledBitOutput[b].data());
             lights[outputLightIds[b]].setBrightnessSmooth(outVolt * 0.1f, args.sampleTime);
@@ -247,7 +279,35 @@ struct Nibbler : Module {
             }
         }
 
+        std::fill(stepDecimatorInput.begin(), stepDecimatorInput.end(), 0);
+        std::fill(offsetStepDecimatorInput.begin(), offsetStepDecimatorInput.end(), 0);
 
+        auto s1 = params[OFFSET_1_PARAM].getValue() > 0.5f;
+        auto s2 = params[OFFSET_2_PARAM].getValue() > 0.5f;
+
+        unsigned char stepOffset = 0;
+
+        if (s1 && !s2) {
+            stepOffset = 4;
+        } else if (!s1 && s2) {
+            stepOffset = 2;
+        } else if (s1 && s2) {
+            stepOffset = 8;
+        }
+
+        for (auto s = 0; s < NIBBLER_UPSAMPLE_RATIO; ++s) {
+            auto outByte = async ? inputBytes[s] : accumulatorOutBytes[s];
+            stepDecimatorInput[s] = static_cast<float>(outByte & 15) * (gateVoltage / 16.f);
+            offsetStepDecimatorInput[s] = static_cast<float>((outByte + stepOffset) & 15) * (gateVoltage / 16.f);
+        }
+
+        auto stepOut = stepDecimator.process(stepDecimatorInput.data());
+        outputs[STEP_OUTPUT].setVoltage(stepOut);
+        lights[STEP_LIGHT].setBrightnessSmooth(stepOut * 0.1f, args.sampleTime);
+
+        auto offsetStepOut = offsetStepDecimator.process(offsetStepDecimatorInput.data());
+        outputs[OFFSET_STEP_OUTPUT].setVoltage(offsetStepOut);
+        lights[OFFSET_STEP_LIGHT].setBrightnessSmooth(offsetStepOut * 0.1f, args.sampleTime);
     }
 };
 
@@ -262,6 +322,8 @@ struct NibblerWidget : ModuleWidget {
 		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(29.56, 19.2)), module, Nibbler::RESET_LIGHT));
 
         addParam(createParamCentered<SchlappiCherryMXBrown>(mm2px(Vec(29.56, 24.661)), module, Nibbler::RESET_PARAM));
         addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(10.494, 16.384)), module, Nibbler::ADD_8_PARAM));

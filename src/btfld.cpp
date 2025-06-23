@@ -200,6 +200,8 @@ struct Btfld : Module {
     std::array<dsp::Upsampler<UPSAMPLE_LEVEL, 8>, 4> upsamplers;
     std::array<dsp::Decimator<UPSAMPLE_LEVEL, 8>, 4> downsamplers;
     std::array<float, UPSAMPLE_LEVEL> upsampledSamples;
+
+    float upsamplerGain, downsamplerGain;
 #endif
 
 	Btfld() {
@@ -219,9 +221,21 @@ struct Btfld : Module {
 
         feedback = 0; previousSteps = 0; previousInputSignal = 0;
 #if (UPSAMPLE_LEVEL > 1)
-        upsamplers.fill({0.4});
+        std::fill(upsamplers.begin(), upsamplers.end(), 0.1);
+
+        float kernelSum = 0;
+        for (auto i = 0; i < UPSAMPLE_LEVEL * 8; ++i) {
+            kernelSum += upsamplers[0].kernel[i];
+        }
+        upsamplerGain = 1.f / kernelSum;
+         kernelSum = 0;
+        for (auto i = 0; i < UPSAMPLE_LEVEL * 8; ++i) {
+            kernelSum += downsamplers[0].kernel[i];
+        }
+        downsamplerGain = 1.f / kernelSum;
 #endif
-	}
+
+    }
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
         stepFilter.setDecay(0.25f * e.sampleRate);
@@ -241,7 +255,7 @@ struct Btfld : Module {
         for (int i = 0; i < NIBBLE; ++i) {
             upsamplers[i].process(x / static_cast<float>(1 << i), &(upsampledSamples[0]));
             for (int s = 0; s < UPSAMPLE_LEVEL; ++s) {
-                upsampledSamples[s] = interpolators[i].calc(upsampledSamples[s]);
+                upsampledSamples[s] = interpolators[i].calc(upsampledSamples[s] * upsamplerGain) * downsamplerGain;
             }
             bits[i] = downsamplers[i].process(&(upsampledSamples[0]));
         }
@@ -274,9 +288,14 @@ struct Btfld : Module {
         inputSignal = std::max(inputSignal, 0.f);
         inputSignal = std::min(inputSignal, 11.7f); // TODO: more natural saturation
         inputSignal *= (15.f / 10.f);
-        auto steps = static_cast<int>(floor(inputSignal));
-        steps = std::max(0, std::min(steps, 15));
 
+        calculateInterpolatedBits(inputSignal);
+        for (auto i = 0; i < NIBBLE; ++i) {
+            outputs[BIT_OUTPUT + i].setVoltage(bits[i] * 10.f - (bipolar ? 5.f : 0.f));
+            lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(bits[i], args.sampleTime);
+        }
+
+        float steps = bits[0] * 1 + bits[1] * 2 + bits[2] * 4 + bits[3] * 8;
         for (int l = 0; l < 8; ++l) {
             // each light covers 2 steps
             auto brightness = 0.f;
@@ -291,16 +310,11 @@ struct Btfld : Module {
             lights[LEVEL_LIGHT + l].setBrightnessSmooth(brightness, args.sampleTime);
         }
 
-        calculateInterpolatedBits(inputSignal);
-        for (auto i = 0; i < NIBBLE; ++i) {
-            outputs[BIT_OUTPUT + i].setVoltage(bits[i] * 10.f - (bipolar ? 5.f : 0.f));
-            lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(bits[i], args.sampleTime);
-        }
 
         auto rescaledSteps = static_cast<float>(steps) * (10.f / 15.f);
         auto filteredSteps = stepFilter.process(rescaledSteps);
         outputs[STEP_OUT_OUTPUT].setVoltage(saturate(bipolar ? filteredSteps : rescaledSteps));
-        auto saw = inputSignal - rescaledSteps;
+        auto saw = inputSignal - steps;
         auto filteredSaw = sawFilter.process(saw);
         feedback = saturate((bipolar ? filteredSaw : saw) * 10.f);
 
@@ -308,6 +322,7 @@ struct Btfld : Module {
         previousSteps = steps;
         setPosNegLight(SAW_INDICATOR_LIGHT, feedback, args.sampleTime);
         outputs[SAW_OUTPUT].setVoltage(feedback);
+//        outputs[SAW_OUTPUT].setVoltage(saw);
     }
 };
 
