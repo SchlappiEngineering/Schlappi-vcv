@@ -221,7 +221,6 @@ struct Btfld : Module {
 
         feedback = 0; previousSteps = 0; previousInputSignal = 0;
 #if (UPSAMPLE_LEVEL > 1)
-        std::cout << "fill upsampelrs\n";
         std::fill(upsamplers.begin(), upsamplers.end(), 0.1f);
         std::fill(downsamplers.begin(), downsamplers.end(), 0.9f);
         float kernelSum = 0;
