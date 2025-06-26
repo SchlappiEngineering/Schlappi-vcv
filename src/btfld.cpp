@@ -7,7 +7,8 @@
 #include <vector>
 
 #define NIBBLE 4
-#define UPSAMPLE_LEVEL 16
+#define BTFLD_UPSAMPLE_RATE 8
+#define BTFLD_UPSAMPLE_QUALITY 12
 
 struct ACCouplingFilter {
     ACCouplingFilter() : xPrev(0), yPrev(0), scalar(0) {}
@@ -28,7 +29,7 @@ public:
 
 struct BitCalculator {
     int stepSize;
-    int delayBeforeGoingHigh = UPSAMPLE_LEVEL * 0.8f;
+    int delayBeforeGoingHigh = BTFLD_UPSAMPLE_RATE * 1.5f;
     int counter;
     int lastOddValue;
 
@@ -100,16 +101,16 @@ struct Btfld : Module {
     ACCouplingFilter stepFilter;
     ACCouplingFilter sawFilter;
 
-    dsp::Upsampler<UPSAMPLE_LEVEL, 8> inputUpsampler;
-    dsp::Upsampler<UPSAMPLE_LEVEL, 8> cvUpsampler;
-    dsp::Upsampler<UPSAMPLE_LEVEL, 8> injectUpsampler;
+    dsp::Upsampler<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> inputUpsampler{0.5f};
+    dsp::Upsampler<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> cvUpsampler{0.5f};
+    dsp::Upsampler<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> injectUpsampler{0.5f};
 
-    std::array<float, UPSAMPLE_LEVEL> upsampledInput;
-    std::array<float, UPSAMPLE_LEVEL> upsampledCV;
-    std::array<float, UPSAMPLE_LEVEL> upsampledInject;
-    std::array<float, UPSAMPLE_LEVEL> workingBuffer;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledInput;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledCV;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledInject;
+    std::array<float, BTFLD_UPSAMPLE_RATE> workingBuffer;
 
-    std::array<dsp::Decimator<UPSAMPLE_LEVEL, 8>, 4> downsamplers;
+    std::array<dsp::Decimator<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY>, 4> downsamplers;
 
     std::array<BitCalculator, NIBBLE> bitCalculators;
 
@@ -137,13 +138,13 @@ struct Btfld : Module {
         std::cout << "kernel calc\n";
 
         float kernelSum = 0;
-        for (auto i = 0; i < UPSAMPLE_LEVEL * 8; ++i) {
+        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * 8; ++i) {
             kernelSum += cvUpsampler.kernel[i];
         }
         upsamplerGain = 1.f / kernelSum;
         std::cout << "kernel calc 2\n";
         kernelSum = 0;
-        for (auto i = 0; i < UPSAMPLE_LEVEL * 8; ++i) {
+        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * 8; ++i) {
             kernelSum += downsamplers[0].kernel[i];
         }
         downsamplerGain = 1.f / kernelSum;
@@ -194,7 +195,7 @@ struct Btfld : Module {
 
         injectUpsampler.process(inject, upsampledInject.data());
 
-        for (auto ss = 0; ss < UPSAMPLE_LEVEL; ++ss) {
+        for (auto ss = 0; ss < BTFLD_UPSAMPLE_RATE; ++ss) {
             upsampledInput[ss] *= upsampledCV[ss];
             upsampledInput[ss] += bipolar ? 5.f : 0.f;
             upsampledInput[ss] += upsampledInject[ss];
@@ -205,7 +206,7 @@ struct Btfld : Module {
         }
 
         for (auto b = 0; b < NIBBLE; ++b) {
-            for (int ss = 0; ss < UPSAMPLE_LEVEL; ++ss) {
+            for (int ss = 0; ss < BTFLD_UPSAMPLE_RATE; ++ss) {
                 workingBuffer[ss] = bitCalculators[b].process(upsampledInput[ss]);
             }
             bits[b] = downsamplers[b].process(workingBuffer.data());
