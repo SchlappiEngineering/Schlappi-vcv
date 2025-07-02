@@ -7,44 +7,8 @@
 #include <vector>
 
 #define NIBBLE 4
-#define ADAA_LEVEL 1
-#define UPSAMPLE_LEVEL 4
-
-struct DelayedRiser {
-    // This emulates something that we observed in the oscilloscope: after the input went high, the output would be
-    // delayed by about 15 khz, but there would be no delay when the input goes low. This way very short blips don't
-    // register. Implementing this should help with aliasing
-    DelayedRiser() {
-        setDelay(0);
-    }
-
-    void setDelay(int _delay) {
-        numSamplesHigh = 0;
-        delay = _delay;
-        previousInput = 0;
-    }
-
-    bool process(int input) {
-        if (input == 0) {
-            numSamplesHigh = false;
-            previousInput = input;
-            return false;
-        } else if (input == previousInput && numSamplesHigh >= delay) {
-            return true;
-        } else if (input == previousInput) {
-            numSamplesHigh++;
-            return false;
-        } else {
-            numSamplesHigh = 0;
-            previousInput = input;
-            return false;
-        }
-    }
-
-    int previousInput;
-    int delay;
-    int numSamplesHigh;
-};
+#define BTFLD_UPSAMPLE_RATE 8
+#define BTFLD_UPSAMPLE_QUALITY 12
 
 struct ACCouplingFilter {
     ACCouplingFilter() : xPrev(0), yPrev(0), scalar(0) {}
@@ -63,97 +27,39 @@ public:
     float xPrev, yPrev, scalar;
 };
 
-struct SecondOrderADAA {
-    SecondOrderADAA() {
-        x_1 = 0;
-        x_2 = 0;
-    }
-    float f(float x) {
-        if (x <= 0) {
-            return 0;
-        }
-        return std::floor(fmodf(x, 2.f));
-    }
+struct BitCalculator {
+    int stepSize;
+    int delayBeforeGoingHigh = BTFLD_UPSAMPLE_RATE * 1.5f;
+    int counter;
+    int lastOddValue;
 
-    float ff(float x) {
-        if (x <= 0) {
-            return 0;
-        }
-        return std::floor(x * 0.5f) + std::max(fmodf(x, 2.f) - 1.f, 0.f);
+    BitCalculator() {
+        counter = 0;
+        lastOddValue = 0;
     }
 
-    float fff(float x) {
-        if (x <= 0) {
-            return 0;
+    bool oddTracker(int input) {
+        if ((input % 2) == 0) {
+            counter = 0;
+            return false;
         }
-        auto x2 = x * 0.5f;
-        auto a = std::floor(x2) * (std::floor(x2 - 1.f)) + 2.f * (x2 - std::floor(x2)) * std::floor(x2);
-        auto b = std::floor(x2) * 0.5f;
-        if (fmodf(x, 2.f) > 1) {
-            auto num = fmodf(x, 2.f) - 1;
-            b += num * num * 0.5f;
+
+        if (input != lastOddValue) {
+            lastOddValue = input;
+            counter = 1;
+        } else if (counter < delayBeforeGoingHigh) {
+            ++counter;
         }
-        return a + b;
+        return counter >= delayBeforeGoingHigh;
     }
 
-    float calcD(float x0, float x1) {
-        if (std::abs(x0 - x1) < epsilon) {
-            return ff((x0 + x1) * 0.5f);
+    float process(float input) {
+        if (oddTracker(static_cast<int>(input) / stepSize)) {
+            return static_cast<float>(1.f);
         }
-        return (fff(x0) - fff(x1)) / (x0 - x1);
+        return 0.f;
     }
-
-    float fallback(float x0, float x2) {
-        auto x_bar = (x0 + x2) * 0.5f;
-        auto delta = x_bar - x0;
-        if (delta < epsilon) {
-            return f((x_bar + x0) * 0.5f);
-        }
-        return (2.0 / delta) * (ff(x_bar) + (fff(x0) - fff(x_bar)) / delta);
-    }
-
-    float calc(float x) {
-        // if the integer part of the input is even, return 0, if odd return 1. Input must be rescaled beforehand.
-        float y;
-#if (ADAA_LEVEL == 0)
-        y = f(x);
-#endif
-
-#if (ADAA_LEVEL == 1)
-        if (std::abs(x - x_1) < epsilon) {
-            y = f((x + x_1) * 0.5f);
-        } else {
-            y = (ff(x) - ff(x_1)) / (x - x_1);
-        }
-#endif
-
-#if (ADAA_LEVEL == 2)
-        if (std::abs(x - x_1) < epsilon) {
-            y = fallback(x, x_2);
-        } else {
-            y = (2.f / (x - x_2)) * (calcD(x, x_1) - calcD(x_1, x_2));
-        }
-#endif
-        x_2 = x_1;
-        x_1 = x;
-        return y;
-    }
-    float epsilon = 0.0001;
-    float x_1;
-    float x_2;
 };
-
-float saturate(float x) {
-    if ((-9 <= x) && (x <= 9)) {
-        return x;
-    } else if (x < -9) {
-        return std::tanh(x + 9) - 9;
-    } else {
-        return std::tanh(x - 9) + 9;
-    }
-}
-
-
 
 struct Btfld : Module {
 	enum ParamId {
@@ -194,15 +100,25 @@ struct Btfld : Module {
 
     ACCouplingFilter stepFilter;
     ACCouplingFilter sawFilter;
-    std::array<SecondOrderADAA, NIBBLE> interpolators;
 
-#if (UPSAMPLE_LEVEL != 1)
-    std::array<dsp::Upsampler<UPSAMPLE_LEVEL, 8>, 4> upsamplers;
-    std::array<dsp::Decimator<UPSAMPLE_LEVEL, 8>, 4> downsamplers;
-    std::array<float, UPSAMPLE_LEVEL> upsampledSamples;
+    dsp::Upsampler<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> inputUpsampler{0.5f};
+    dsp::Upsampler<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> cvUpsampler{0.5f};
+    dsp::Upsampler<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> injectUpsampler{0.5f};
+
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledInput;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledCV;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledInject;
+    std::array<float, BTFLD_UPSAMPLE_RATE> workingBuffer;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledStepOut;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledSaw;
+
+    std::array<dsp::Decimator<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY>, 4> downsamplers;
+    dsp::Decimator<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> stepDownsampler;
+    dsp::Decimator<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> sawDownsampler;
+
+    std::array<BitCalculator, NIBBLE> bitCalculators;
 
     float upsamplerGain, downsamplerGain;
-#endif
 
 	Btfld() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -219,22 +135,25 @@ struct Btfld : Module {
         configOutput(BIT_OUTPUT, "Out 1");
         configOutput(STEP_OUT_OUTPUT, "Step");
 
+        std::fill(workingBuffer.begin(), workingBuffer.end(), 0.f);
+
         feedback = 0; previousSteps = 0; previousInputSignal = 0;
-#if (UPSAMPLE_LEVEL > 1)
-        std::fill(upsamplers.begin(), upsamplers.end(), 0.1f);
-        std::fill(downsamplers.begin(), downsamplers.end(), 0.9f);
+
         float kernelSum = 0;
-        for (auto i = 0; i < UPSAMPLE_LEVEL * 8; ++i) {
-            kernelSum += upsamplers[0].kernel[i];
+        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * BTFLD_UPSAMPLE_QUALITY; ++i) {
+            kernelSum += cvUpsampler.kernel[i];
         }
         upsamplerGain = 1.f / kernelSum;
-         kernelSum = 0;
-        for (auto i = 0; i < UPSAMPLE_LEVEL * 8; ++i) {
+        kernelSum = 0;
+        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * BTFLD_UPSAMPLE_QUALITY; ++i) {
             kernelSum += downsamplers[0].kernel[i];
         }
         downsamplerGain = 1.f / kernelSum;
-#endif
 
+        bitCalculators[0].stepSize = 1;
+        bitCalculators[1].stepSize = 2;
+        bitCalculators[2].stepSize = 4;
+        bitCalculators[3].stepSize = 8;
     }
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
@@ -245,21 +164,8 @@ struct Btfld : Module {
         for (auto& b : bitFilter) { b = 0; }
     }
 
-    void calculateInterpolatedBits(float x) {
-#if (UPSAMPLE_LEVEL == 1)
-        bits[0] = interpolators[0].calc(x);
-        bits[1] = interpolators[1].calc(x / 2.f);
-        bits[2] = interpolators[2].calc(x / 4.f);
-        bits[3] = interpolators[3].calc(x / 8.f);
-#else
-        for (int i = 0; i < NIBBLE; ++i) {
-            upsamplers[i].process(x / static_cast<float>(1 << i), upsampledSamples.data());
-            for (int s = 0; s < UPSAMPLE_LEVEL; ++s) {
-                upsampledSamples[s] = interpolators[i].calc(upsampledSamples[s] * upsamplerGain) * downsamplerGain;
-            }
-            bits[i] = downsamplers[i].process(upsampledSamples.data());
-        }
-#endif
+    float saturate(float x) {
+        return std::min(std::max(0.f, x), 11.7f);
     }
 
     void setPosNegLight(int light, float voltage, float sampleTime) {
@@ -272,30 +178,57 @@ struct Btfld : Module {
         auto cvInput = inputs[CV_INPUT].isConnected() ? inputs[CV_INPUT].getVoltage() : feedback;
         auto gain = params[GAIN_PARAM].getValue() + params[CV_PARAM].getValue() * cvInput * 0.1f;
 
+        cvUpsampler.process(gain * upsamplerGain, upsampledCV.data());
+
         setPosNegLight(CV_INDICATOR_LIGHT, params[CV_PARAM].getValue() * cvInput, args.sampleTime);
+
 
         auto inputSignal = inputs[INPUT_INPUT].getVoltage();
         auto bipolar = params[RANGE_PARAM].getValue() > 0.5f;
         setPosNegLight(INPUT_INDICATOR_LIGHT, inputSignal, args.sampleTime);
-        inputSignal *= gain;
-        inputSignal += bipolar ? 5.f : 0.f;
+
+
+        inputUpsampler.process(inputSignal * upsamplerGain, upsampledInput.data());
 
         auto inject = inputs[INJECT_INPUT].getVoltage();
         setPosNegLight(INJECT_INDICATOR_LIGHT, inject, args.sampleTime);
 
-        inputSignal += inject;
+        injectUpsampler.process(inject * upsamplerGain, upsampledInject.data());
 
-        inputSignal = std::max(inputSignal, 0.f);
-        inputSignal = std::min(inputSignal, 11.7f); // TODO: more natural saturation
-        inputSignal *= (15.f / 10.f);
+        for (auto ss = 0; ss < BTFLD_UPSAMPLE_RATE; ++ss) {
+            upsampledInput[ss] *= upsampledCV[ss];
+            upsampledInput[ss] += bipolar ? 5.f : 0.f;
+            upsampledInput[ss] += upsampledInject[ss];
 
-        calculateInterpolatedBits(inputSignal);
+            upsampledInput[ss] = saturate(upsampledInput[ss]);
+
+            upsampledInput[ss] *= (16.f / 10.f);
+
+
+            upsampledStepOut[ss] = std::max(upsampledInput[ss] - 15.99f, 0.f);
+            upsampledInput[ss] = std::min(upsampledInput[ss], 15.99f);
+
+            upsampledStepOut[ss] += std::floor(upsampledInput[ss]);
+            upsampledSaw[ss] = std::min(std::max(0.f, upsampledInput[ss] - upsampledStepOut[ss]), 1.1f);
+        }
+
+
+
+        for (auto b = 0; b < NIBBLE; ++b) {
+            for (int ss = 0; ss < BTFLD_UPSAMPLE_RATE; ++ss) {
+                workingBuffer[ss] = bitCalculators[b].process(upsampledInput[ss]);
+            }
+            bits[b] = downsamplers[b].process(workingBuffer.data()) * downsamplerGain;
+        }
+
         for (auto i = 0; i < NIBBLE; ++i) {
             outputs[BIT_OUTPUT + i].setVoltage(bits[i] * 10.f - (bipolar ? 5.f : 0.f));
             lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(bits[i], args.sampleTime);
         }
 
-        float steps = bits[0] * 1 + bits[1] * 2 + bits[2] * 4 + bits[3] * 8;
+        float steps = stepDownsampler.process(upsampledStepOut.data()) * downsamplerGain;
+        float saw = sawDownsampler.process(upsampledSaw.data()) * downsamplerGain;
+
         for (int l = 0; l < 8; ++l) {
             // each light covers 2 steps
             auto brightness = 0.f;
@@ -311,12 +244,12 @@ struct Btfld : Module {
         }
 
 
-        auto rescaledSteps = static_cast<float>(steps) * (10.f / 15.f);
+        saw *= 10.f;
+        auto rescaledSteps = steps * (10.f / 16.f);
         auto filteredSteps = stepFilter.process(rescaledSteps);
-        outputs[STEP_OUT_OUTPUT].setVoltage(saturate(bipolar ? filteredSteps : rescaledSteps));
-        auto saw = inputSignal - steps;
+        outputs[STEP_OUT_OUTPUT].setVoltage(bipolar ? filteredSteps : rescaledSteps);
         auto filteredSaw = sawFilter.process(saw);
-        feedback = saturate((bipolar ? filteredSaw : saw) * 10.f);
+        feedback = std::min(std::max(-12.f, (bipolar ? filteredSaw : saw)), 12.f);
 
         previousInputSignal = inputSignal;
         previousSteps = steps;
