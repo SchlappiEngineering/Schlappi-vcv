@@ -109,8 +109,12 @@ struct Btfld : Module {
     std::array<float, BTFLD_UPSAMPLE_RATE> upsampledCV;
     std::array<float, BTFLD_UPSAMPLE_RATE> upsampledInject;
     std::array<float, BTFLD_UPSAMPLE_RATE> workingBuffer;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledStepOut;
+    std::array<float, BTFLD_UPSAMPLE_RATE> upsampledSaw;
 
     std::array<dsp::Decimator<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY>, 4> downsamplers;
+    dsp::Decimator<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> stepDownsampler;
+    dsp::Decimator<BTFLD_UPSAMPLE_RATE, BTFLD_UPSAMPLE_QUALITY> sawDownsampler;
 
     std::array<BitCalculator, NIBBLE> bitCalculators;
 
@@ -135,20 +139,17 @@ struct Btfld : Module {
 
         feedback = 0; previousSteps = 0; previousInputSignal = 0;
 
-        std::cout << "kernel calc\n";
 
         float kernelSum = 0;
-        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * 8; ++i) {
+        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * BTFLD_UPSAMPLE_QUALITY; ++i) {
             kernelSum += cvUpsampler.kernel[i];
         }
         upsamplerGain = 1.f / kernelSum;
-        std::cout << "kernel calc 2\n";
         kernelSum = 0;
-        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * 8; ++i) {
+        for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * BTFLD_UPSAMPLE_QUALITY; ++i) {
             kernelSum += downsamplers[0].kernel[i];
         }
         downsamplerGain = 1.f / kernelSum;
-        std::cout << "done\n";
 
         bitCalculators[0].stepSize = 1;
         bitCalculators[1].stepSize = 2;
@@ -178,7 +179,7 @@ struct Btfld : Module {
         auto cvInput = inputs[CV_INPUT].isConnected() ? inputs[CV_INPUT].getVoltage() : feedback;
         auto gain = params[GAIN_PARAM].getValue() + params[CV_PARAM].getValue() * cvInput * 0.1f;
 
-        cvUpsampler.process(gain, upsampledCV.data());
+        cvUpsampler.process(gain * upsamplerGain, upsampledCV.data());
 
         setPosNegLight(CV_INDICATOR_LIGHT, params[CV_PARAM].getValue() * cvInput, args.sampleTime);
 
@@ -187,13 +188,13 @@ struct Btfld : Module {
         auto bipolar = params[RANGE_PARAM].getValue() > 0.5f;
         setPosNegLight(INPUT_INDICATOR_LIGHT, inputSignal, args.sampleTime);
 
-        inputUpsampler.process(inputSignal, upsampledInput.data());
 
+        inputUpsampler.process(inputSignal * upsamplerGain, upsampledInput.data());
 
         auto inject = inputs[INJECT_INPUT].getVoltage();
         setPosNegLight(INJECT_INDICATOR_LIGHT, inject, args.sampleTime);
 
-        injectUpsampler.process(inject, upsampledInject.data());
+        injectUpsampler.process(inject * upsamplerGain, upsampledInject.data());
 
         for (auto ss = 0; ss < BTFLD_UPSAMPLE_RATE; ++ss) {
             upsampledInput[ss] *= upsampledCV[ss];
@@ -202,14 +203,23 @@ struct Btfld : Module {
 
             upsampledInput[ss] = saturate(upsampledInput[ss]);
 
-            upsampledInput[ss] *= (15.f / 10.f);
+            upsampledInput[ss] *= (16.f / 10.f);
+
+
+            upsampledStepOut[ss] = std::max(upsampledInput[ss] - 15.99f, 0.f);
+            upsampledInput[ss] = std::min(upsampledInput[ss], 15.99f);
+
+            upsampledStepOut[ss] += std::floor(upsampledInput[ss]);
+            upsampledSaw[ss] = std::min(std::max(0.f, upsampledInput[ss] - upsampledStepOut[ss]), 1.1f);
         }
+
+
 
         for (auto b = 0; b < NIBBLE; ++b) {
             for (int ss = 0; ss < BTFLD_UPSAMPLE_RATE; ++ss) {
                 workingBuffer[ss] = bitCalculators[b].process(upsampledInput[ss]);
             }
-            bits[b] = downsamplers[b].process(workingBuffer.data());
+            bits[b] = downsamplers[b].process(workingBuffer.data()) * downsamplerGain;
         }
 
         for (auto i = 0; i < NIBBLE; ++i) {
@@ -217,7 +227,9 @@ struct Btfld : Module {
             lights[BIT_INDICATOR_LIGHT + i].setBrightnessSmooth(bits[i], args.sampleTime);
         }
 
-        float steps = bits[0] * 1 + bits[1] * 2 + bits[2] * 4 + bits[3] * 8;
+        float steps = stepDownsampler.process(upsampledStepOut.data()) * downsamplerGain;
+        float saw = sawDownsampler.process(upsampledSaw.data()) * downsamplerGain;
+
         for (int l = 0; l < 8; ++l) {
             // each light covers 2 steps
             auto brightness = 0.f;
@@ -233,12 +245,12 @@ struct Btfld : Module {
         }
 
 
-        auto rescaledSteps = static_cast<float>(steps) * (10.f / 15.f);
+        saw *= 10.f;
+        auto rescaledSteps = steps * (10.f / 16.f);
         auto filteredSteps = stepFilter.process(rescaledSteps);
-        outputs[STEP_OUT_OUTPUT].setVoltage(saturate(bipolar ? filteredSteps : rescaledSteps));
-        auto saw = inputSignal - steps;
+        outputs[STEP_OUT_OUTPUT].setVoltage(bipolar ? filteredSteps : rescaledSteps);
         auto filteredSaw = sawFilter.process(saw);
-        feedback = saturate((bipolar ? filteredSaw : saw) * 10.f);
+        feedback = std::min(std::max(-12.f, (bipolar ? filteredSaw : saw)), 12.f);
 
         previousInputSignal = inputSignal;
         previousSteps = steps;
