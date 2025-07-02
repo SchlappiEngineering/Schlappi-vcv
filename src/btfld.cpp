@@ -139,7 +139,6 @@ struct Btfld : Module {
 
         feedback = 0; previousSteps = 0; previousInputSignal = 0;
 
-
         float kernelSum = 0;
         for (auto i = 0; i < BTFLD_UPSAMPLE_RATE * BTFLD_UPSAMPLE_QUALITY; ++i) {
             kernelSum += cvUpsampler.kernel[i];
