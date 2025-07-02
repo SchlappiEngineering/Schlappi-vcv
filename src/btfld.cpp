@@ -255,7 +255,6 @@ struct Btfld : Module {
         previousSteps = steps;
         setPosNegLight(SAW_INDICATOR_LIGHT, feedback, args.sampleTime);
         outputs[SAW_OUTPUT].setVoltage(feedback);
-//        outputs[SAW_OUTPUT].setVoltage(saw);
     }
 };
 

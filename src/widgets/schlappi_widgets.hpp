@@ -24,8 +24,22 @@ struct SchlappiCherryMXBrown : rack::app::SvgSwitch {
 
 struct SchlappiSilverKnob : RoundKnob {
     SchlappiSilverKnob() {
-        setSvg(APP->window->loadSvg(rack::asset::plugin(pluginInstance, "res/widgets/silver-knob-dark.svg")));
-        bg->setSvg(APP->window->loadSvg(rack::asset::plugin(pluginInstance, "res/widgets/silver-knob-bg-dark.svg")));
+        setSvgs();
+    }
+
+    void setSvgs() {
+        setSvg(APP->window->loadSvg(settings::preferDarkPanels
+            ? rack::asset::plugin(pluginInstance, "res/widgets/silver-knob-dark.svg")
+            : rack::asset::plugin(pluginInstance, "res/widgets/silver-knob.svg")));
+        bg->setSvg(APP->window->loadSvg(settings::preferDarkPanels
+            ? rack::asset::plugin(pluginInstance, "res/widgets/silver-knob-bg-dark.svg")
+            : rack::asset::plugin(pluginInstance, "res/widgets/silver-knob-bg.svg")));
+
+    }
+
+    void step() override {
+        setSvgs();
+        RoundKnob::step();
     }
 };
 
