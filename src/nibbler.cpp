@@ -323,7 +323,18 @@ struct NibblerWidget : ModuleWidget {
 		addChild(createWidget<ThemedScrew>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ThemedScrew>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        addChild(createLightCentered<MediumLight<BlueLight>>(mm2px(Vec(29.56, 19.2)), module, Nibbler::RESET_LIGHT));
+        auto buttonLight = createLightCentered<RectangleLight<BlueLight>>(mm2px(Vec(29.56, 24.661)), module, Nibbler::RESET_LIGHT);
+        auto buttonCenter = 19.974 * 0.5;
+        auto x = 8.737;
+        auto y = 1.261;
+        auto pos = mm2px(Vec(x - buttonCenter, y - buttonCenter));
+        auto w = 2.521;
+        auto h  = 4.825;
+        auto size = mm2px(Vec(w,h));
+        buttonLight->box.pos = mm2px(Vec(29.56, 24.661)) + pos;
+        buttonLight->box.size = size;
+        addChild(buttonLight);
+
 
         addParam(createParamCentered<SchlappiCherryMXBrown>(mm2px(Vec(29.56, 24.661)), module, Nibbler::RESET_PARAM));
         addParam(createParamCentered<SchlappiToggleVertical2pos>(mm2px(Vec(10.494, 16.384)), module, Nibbler::ADD_8_PARAM));
