@@ -166,9 +166,7 @@ struct Nibbler : Module {
         gateVoltage = 10.f / kernelSum;
     }
 
-	void process(const ProcessArgs& args) override {
-
-        /* Calculate bit inputs */
+    void fillInputs(float sampleTime) {
         for (auto& b : inputBytes) { b = 0; }
 
         for (auto b = 0; b < NIBBLER_NUM_BITS; ++b) {
@@ -179,7 +177,7 @@ struct Nibbler : Module {
                 inputBytes[s] += (gateUTrig[b].trigger.isHigh() ? 1 : 0) << b;
             }
 
-            lights[gateLightIds[b]].setBrightnessSmooth(gateUTrig[b].trigger.isHigh(), args.sampleTime);
+            lights[gateLightIds[b]].setBrightnessSmooth(gateUTrig[b].trigger.isHigh(), sampleTime);
         }
 
         carryInUTrig.process(inputs[CARRY_IN_INPUT].getVoltage());
@@ -189,7 +187,7 @@ struct Nibbler : Module {
             inputBytes[s] += carryInUTrig.trigger.isHigh() ? 1 : 0;
         }
 
-        lights[CARRY_IN_LIGHT].setBrightnessSmooth(carryInUTrig.trigger.isHigh(), args.sampleTime);
+        lights[CARRY_IN_LIGHT].setBrightnessSmooth(carryInUTrig.trigger.isHigh(), sampleTime);
 
         unsigned char add = 0;
 
@@ -207,13 +205,15 @@ struct Nibbler : Module {
         for (auto s = 0; s < NIBBLER_UPSAMPLE_RATIO; ++s) {
             subtractUTrig.trigger.process(subtractUTrig.input[s], 0.1, 1.f);
             if (subtractSwitch != (subtractUTrig.trigger.isHigh())) {
-                inputBytes[s] = 32 - inputBytes[s];
-                inputBytes[s] ^= (1 << 4); // invert the carry: we really want 16-x, in 2s compliment, not 32-x
+                inputBytes[s] = 16 - inputBytes[s];
             }
         }
 
-        lights[SUB_LIGHT].setBrightnessSmooth((subtractSwitch != subtractUTrig.trigger.isHigh()) ? 1.f : 0.f, args.sampleTime);
+        lights[SUB_LIGHT].setBrightnessSmooth((subtractSwitch != subtractUTrig.trigger.isHigh()) ? 1.f : 0.f, sampleTime);
+    }
 
+	void process(const ProcessArgs& args) override {
+        fillInputs(args.sampleTime);
 
         /* Set accumulator parameters */
         resetUTrig.process(inputs[RESET_INPUT].getVoltage());

@@ -4,9 +4,10 @@
 #include <array>
 #include <iostream>
 #include <cmath>
+#include "Resamplers.h"
 
-#define UPSAMPLE_RATIO 16
-#define UPSAMPLE_QUALITY 4
+#define UPSAMPLE_RATIO 8
+#define UPSAMPLE_QUALITY 2
 
 struct BTMX : Module {
 	enum ParamId {
@@ -41,8 +42,8 @@ struct BTMX : Module {
     std::array<dsp::SchmittTrigger, 8> triggers;
     std::array<float, 4> mixOuts;
 
-    std::array<dsp::Decimator<UPSAMPLE_RATIO, UPSAMPLE_QUALITY>, 4> decimators;
-    std::array<dsp::Upsampler<UPSAMPLE_RATIO, UPSAMPLE_QUALITY>, 8> upsamplers;
+    std::array<IIRDecimator<UPSAMPLE_RATIO, UPSAMPLE_QUALITY>, 4> decimators;
+    std::array<IIRUpsampler<UPSAMPLE_RATIO, UPSAMPLE_QUALITY>, 8> upsamplers;
     std::array<std::array<bool, UPSAMPLE_RATIO>, 8> upsampledTriggers;
     std::array<std::array<float, UPSAMPLE_RATIO>, 4> upsampledMixOuts;
     std::array<float, UPSAMPLE_RATIO> workingBuffer;
@@ -79,14 +80,10 @@ struct BTMX : Module {
             trigger.reset();
         }
 
-        std::fill(upsamplers.begin(), upsamplers.end(), 0.2f);
-        std::fill(decimators.begin(), decimators.end(), 0.8f);
+        // std::fill(upsamplers.begin(), upsamplers.end(), 0.2f);
+        // std::fill(decimators.begin(), decimators.end(), 0.001f);
 
-        float kernelSum = 0;
-        for (auto i = 0; i < UPSAMPLE_RATIO * UPSAMPLE_QUALITY; ++i) {
-            kernelSum += decimators[0].kernel[i];
-        }
-        gateVoltage = 10.f / kernelSum;
+        gateVoltage = 10.f;
     }
 
 	void process(const ProcessArgs& args) override {
