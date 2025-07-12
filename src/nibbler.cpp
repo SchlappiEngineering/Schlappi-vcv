@@ -10,6 +10,7 @@
 
 
 struct UpsampledTrigger {
+    UpsampledTrigger() : upsampler(0.7f) {}
     std::array<float, NIBBLER_UPSAMPLE_RATIO> input;
     dsp::Upsampler<NIBBLER_UPSAMPLE_RATIO, NIBBLER_UPSAMPLE_QUALITY> upsampler;
     dsp::SchmittTrigger trigger;
@@ -19,6 +20,21 @@ struct UpsampledTrigger {
     }
 };
 
+struct NibbleRegister {
+    unsigned char heldValue;
+    NibbleRegister() : heldValue(0) {}
+    unsigned char process(unsigned char input, bool shift, bool shiftData, bool clock, bool reset) {
+        if (clock) {
+            heldValue = input & 15;
+            heldValue <<= shift ? 1 : 0;
+            heldValue += shift && shiftData ? 1 : 0;
+        }
+        if (reset) {
+            heldValue = 0;
+        }
+        return heldValue;
+    }
+};
 
 struct Nibbler : Module {
 	enum ParamId {
@@ -121,6 +137,8 @@ struct Nibbler : Module {
     float out8;
     float gateVoltage;
 
+    NibbleRegister nibbleRegister;
+
 	Nibbler() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(ADD_8_PARAM, 0.f, 1.f, 0.f, "");
@@ -166,9 +184,7 @@ struct Nibbler : Module {
         gateVoltage = 10.f / kernelSum;
     }
 
-	void process(const ProcessArgs& args) override {
-
-        /* Calculate bit inputs */
+    void computeInputBytes(const ProcessArgs& args) {
         for (auto& b : inputBytes) { b = 0; }
 
         for (auto b = 0; b < NIBBLER_NUM_BITS; ++b) {
@@ -207,13 +223,15 @@ struct Nibbler : Module {
         for (auto s = 0; s < NIBBLER_UPSAMPLE_RATIO; ++s) {
             subtractUTrig.trigger.process(subtractUTrig.input[s], 0.1, 1.f);
             if (subtractSwitch != (subtractUTrig.trigger.isHigh())) {
-                inputBytes[s] = 32 - inputBytes[s];
-                inputBytes[s] ^= (1 << 4); // invert the carry: we really want 16-x, in 2s compliment, not 32-x
+                inputBytes[s] = 16 - (inputBytes[s] & 15);
             }
         }
 
         lights[SUB_LIGHT].setBrightnessSmooth((subtractSwitch != subtractUTrig.trigger.isHigh()) ? 1.f : 0.f, args.sampleTime);
+    }
 
+	void process(const ProcessArgs& args) override {
+        computeInputBytes(args);
 
         /* Set accumulator parameters */
         resetUTrig.process(inputs[RESET_INPUT].getVoltage());
@@ -226,36 +244,34 @@ struct Nibbler : Module {
         shiftXorUTrig.process(inputs[DATA_XOR_INPUT].getVoltage());
 
         bool resetButtonDown = params[RESET_PARAM].getValue() > 0.5f;
-
+        /* reset light is only based on the button, not the jack input */
         lights[RESET_LIGHT].setBrightnessSmooth(resetButtonDown, args.sampleTime);
 
         bool async = (params[ASYNC_SYNC_PARAM].getValue() > 0.5f) || !inputs[CLOCK_INPUT].isConnected();
 
-
         for (auto s = 0; s < NIBBLER_UPSAMPLE_RATIO; ++s) {
-            accumulatorOutBytes[s] = accumulatorOutBytes[(s+NIBBLER_UPSAMPLE_RATIO-1)%NIBBLER_UPSAMPLE_RATIO]; // prev
-            inputBytes[s] += accumulatorOutBytes[s] & 15;
+            inputBytes[s] += nibbleRegister.heldValue;
             shiftDataUTrig.trigger.process(shiftDataUTrig.input[s]);
             shiftXorUTrig.trigger.process(shiftXorUTrig.input[s]);
+
             auto hiShift = shiftUTrig.trigger.process(shiftUTrig.input[s], 0.1f, 1.f);
             auto hiClock = clockUTrig.trigger.process(clockUTrig.input[s], 0.1f, 1.f);
-            if (hiClock || (async && hiShift)) {
-                accumulatorOutBytes[s] = inputBytes[s];
 
-                if (shiftUTrig.trigger.isHigh()) {
-                    accumulatorOutBytes[s] <<= 1;
+            hiClock = async ? (hiClock || hiShift) : hiClock;
 
-                    auto s1 = inputs[SHIFT_DATA_INPUT].isConnected() ? shiftDataUTrig.trigger.isHigh() : out8;
-                    auto s2 = shiftXorUTrig.trigger.isHigh();
+            auto s1 = inputs[SHIFT_DATA_INPUT].isConnected() ? shiftDataUTrig.trigger.isHigh() : out8;
+            auto s2 = shiftXorUTrig.trigger.isHigh();
 
-                    accumulatorOutBytes[s] += (s1 != s2) ? 1 : 0;
-                }
-            }
+            auto shiftDataInput = (s1 != s2);
 
             resetUTrig.trigger.process(resetUTrig.input[s], 0.1f, 1.f);
-            if (resetUTrig.trigger.isHigh() || resetButtonDown) {
-                accumulatorOutBytes[s] = 0;
-            }
+
+            nibbleRegister.process(inputBytes[s],
+                                   shiftUTrig.trigger.isHigh(),
+                                   shiftDataInput,
+                                   hiClock,
+                                   (resetUTrig.trigger.isHigh() || resetButtonDown));
+            accumulatorOutBytes[s] = async ? inputBytes[s] : nibbleRegister.heldValue;
         }
 
         lights[CLOCK_LIGHT].setBrightnessSmooth(clockUTrig.trigger.isHigh(), args.sampleTime);
