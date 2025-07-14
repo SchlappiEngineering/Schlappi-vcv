@@ -2,7 +2,6 @@
 #include "widgets/schlappi_widgets.hpp"
 #include <rack.hpp>
 #include <array>
-#include <iostream>
 #include <cmath>
 
 #define UPSAMPLE_RATIO 16

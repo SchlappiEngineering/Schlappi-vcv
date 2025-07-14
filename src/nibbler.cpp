@@ -1,7 +1,6 @@
 #include "plugin.hpp"
 #include "widgets/schlappi_widgets.hpp"
 #include <array>
-#include <iostream>
 
 
 #define NIBBLER_UPSAMPLE_RATIO 16
@@ -274,6 +273,7 @@ struct Nibbler : Module {
             if (async) {
                 accumulatorOutBytes[s] = inputBytes[s];
             } else {
+                // carry always comes from the summed input bytes, it is not held in the register
                 accumulatorOutBytes[s] = nibbleRegister.heldValue | (inputBytes[s] & 16);
             }
         }

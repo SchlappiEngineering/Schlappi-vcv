@@ -1,6 +1,5 @@
 #include "plugin.hpp"
 #include "widgets/schlappi_widgets.hpp"
-#include <iostream>
 #include <cmath>
 #include <math.h>
 #include <array>
