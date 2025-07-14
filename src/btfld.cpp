@@ -303,4 +303,4 @@ struct BtfldWidget : ModuleWidget {
 };
 
 
-Model* modelBtfld = createModel<Btfld, BtfldWidget>("btfld");
+Model* modelBtfld = createModel<Btfld, BtfldWidget>("BTFLD");
