@@ -271,7 +271,11 @@ struct Nibbler : Module {
                                    shiftDataInput,
                                    hiClock,
                                    (resetUTrig.trigger.isHigh() || resetButtonDown));
-            accumulatorOutBytes[s] = async ? inputBytes[s] : nibbleRegister.heldValue;
+            if (async) {
+                accumulatorOutBytes[s] = inputBytes[s];
+            } else {
+                accumulatorOutBytes[s] = nibbleRegister.heldValue | (inputBytes[s] & 16);
+            }
         }
 
         lights[CLOCK_LIGHT].setBrightnessSmooth(clockUTrig.trigger.isHigh(), args.sampleTime);
