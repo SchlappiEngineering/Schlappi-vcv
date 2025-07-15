@@ -149,7 +149,7 @@ struct BTMX : Module {
                 mixOuts[0] * 8 +
                 mixOuts[1] * 4 +
                 mixOuts[2] * 2 +
-                mixOuts[1] * 1;
+                mixOuts[3] * 1;
 
         for (auto i = 0; i < 4; ++i) {
             outputs[MIX_OUTPUT + i].setVoltage(mixOuts[i] * gateVoltage);
