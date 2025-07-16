@@ -1,4 +1,4 @@
-# Schlappi Industries VCV Rack Modules
+# Schlappi Engineering VCV Rack Modules
 
 <img src="images/screenshot.png">
 
