@@ -2,7 +2,7 @@
   "slug": "SchlappiEngineering",
   "name": "Schlappi Engineering",
   "version": "2.0.0",
-  "license": " GPL-3.0-or-later",
+  "license": "GPL-3.0-or-later",
   "brand": "Schlappi Engineering",
   "author": "Eric Schlappi, Arden Butterfield",
   "authorEmail": "",
@@ -33,8 +33,7 @@
       "description": "BTMX (BitMix) gives hands on control over logic and rhythmic gate signals with a switch for every input and 4 different logic functions.",
       "tags" : [
         "Logic",
-        "Hardware clone",
-        ""
+        "Hardware clone"
       ]
     },
     {
