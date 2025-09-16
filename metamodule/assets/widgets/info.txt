@@ -1,0 +1,1 @@
+To generate assets to this directory, use the script metamodule-plugin-sdk/scripts/SvgToPng.py

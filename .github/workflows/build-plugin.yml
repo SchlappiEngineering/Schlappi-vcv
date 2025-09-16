@@ -158,6 +158,7 @@ jobs:
       - name: Copy assets to folder
         run: |
           python3 metamodule-plugin-sdk/scripts/SvgToPng.py --input res --output metamodule/assets --white --height=240
+          python3 metamodule-plugin-sdk/scripts/SvgToPng.py --input res/widgets --output metamodule/assets/widgets --white --height=240
 
       - name: Build
         run: |
