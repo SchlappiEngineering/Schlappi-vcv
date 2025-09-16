@@ -128,10 +128,10 @@ struct Btfld : Module {
 		configInput(CV_INPUT, "CV");
 		configInput(INJECT_INPUT, "Inject");
 		configOutput(SAW_OUTPUT, "Saw");
-		configOutput(BIT_OUTPUT + 3, "Out 8");
-		configOutput(BIT_OUTPUT + 2, "Out 4");
-		configOutput(BIT_OUTPUT + 1, "Out 2");
-        configOutput(BIT_OUTPUT, "Out 1");
+		configOutput(BIT_OUTPUT + 3, "Out bit 8");
+		configOutput(BIT_OUTPUT + 2, "Out bit 4");
+		configOutput(BIT_OUTPUT + 1, "Out bit 2");
+        configOutput(BIT_OUTPUT, "Out bit 1");
         configOutput(STEP_OUT_OUTPUT, "Step");
 
         std::fill(workingBuffer.begin(), workingBuffer.end(), 0.f);
