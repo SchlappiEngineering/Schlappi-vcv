@@ -22,6 +22,7 @@ target_sources(schlappiengineering
         ${SOURCE_DIR}/btmx.cpp
         ${SOURCE_DIR}/plugin.cpp
         ${SOURCE_DIR}/nibbler.cpp
+        ${SOURCE_DIR}/plugin.hpp
 )
 
 target_include_directories(schlappiengineering
